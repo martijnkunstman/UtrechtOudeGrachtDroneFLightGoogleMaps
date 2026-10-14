@@ -333,7 +333,7 @@
   </div>
 
   <div class="row">
-    <button id="resetAll" class="linkish">Standaardinstellingen voor deze route</button>
+    <button id="resetAll" class="linkish">Standaardinstellingen herstellen</button>
     &nbsp;·&nbsp;
     <button id="changeKey" class="linkish">Andere API-sleutel gebruiken</button>
   </div>
@@ -348,7 +348,6 @@
     <h2>Google Maps-sleutel</h2>
     <p>De fotorealistische 3D-kaart komt van Google Maps en heeft jouw eigen API-sleutel nodig, met de <b>Maps JavaScript API</b> ingeschakeld in Google Cloud.</p>
     <input id="keyInput" type="text" spellcheck="false" placeholder="AIza…" aria-label="Google Maps API-sleutel" required>
-    <label class="check"><input id="remember" type="checkbox" checked> Onthoud op dit apparaat</label>
     <button type="submit" class="primary">Start de vlucht</button>
     <p class="fine">Je kunt de sleutel ook vast in dit bestand zetten (<code>API_KEY</code> bovenin het script) of meegeven als <code>?key=…</code> achter de bestandsnaam.</p>
   </form>
@@ -436,11 +435,16 @@ const NYC_BRIDGES = [
   { name: 'de Williamsburg Bridge', pts: [[40.713535,-73.9714],[40.713574,-73.971531],[40.713614,-73.971661],[40.713653,-73.971791],[40.713693,-73.971922],[40.713732,-73.972052],[40.713772,-73.972183],[40.713811,-73.972313],[40.713851,-73.972444],[40.71389,-73.972574],[40.713598,-73.972777],[40.713558,-73.972645],[40.713518,-73.972513],[40.713478,-73.972381],[40.713438,-73.972249],[40.713397,-73.972117],[40.713357,-73.971985],[40.713317,-73.971853],[40.713277,-73.971721],[40.713237,-73.971589],[40.713217,-73.971523]] }
 ];
 
-/* Per route:
+/* Standaardinstellingen: gelden bij het laden van de pagina en bij elke nieuwe run van een stad. */
+const RUN_DEFAULTS = { speed: 20, height: 50, pitch: 35, fov: 72 };
+const START_FRACTION = 1 / 3;   // elke vlucht begint op 1/3 van de route
+
+/* Per route (de volgorde is ook de volgorde van de rondvlucht):
    ends         – begin- en eindpunt (voor de vaarrichting en de teksten)
    water        – waterpeil in m t.o.v. zeeniveau (aan te passen met "Meet op de kaart")
    bridgeUnder  – vrije hoogte onder de bruggen; lager vliegen = er gewoon onderdoor
    bridgeOver   – hoogte waarop "Over bruggen heen" de camera over een brug tilt
+   hop          – standaardstand van "Over bruggen heen"
    build        – instellingen voor het gladstrijken van de lijn                                  */
 const ROUTES = [
   {
@@ -448,28 +452,28 @@ const ROUTES = [
     path: UTRECHT_PATH, bridges: UTRECHT_BRIDGES, water: 0.5,
     bridgeUnder: 0, bridgeOver: 7.5, hopRamp: 16, maxHeight: 60,
     build: { smoothSigma: 6, headingSigma: 9, trimStart: 10 },
-    defaults: { speed: 5, height: 25, pitch: 25, fov: 50, hop: false }
+    hop: false
   },
   {
     id: 'amsterdam', city: 'Amsterdam', name: 'Herengracht', ends: ['de Brouwersgracht', 'de Amstel'],
     path: AMSTERDAM_PATH, bridges: AMSTERDAM_BRIDGES, water: -0.4,
     bridgeUnder: 0, bridgeOver: 6.5, hopRamp: 16, maxHeight: 60,
     build: { smoothSigma: 9, headingSigma: 12, trimStart: 15, trimEnd: 10 },
-    defaults: { speed: 6, height: 25, pitch: 25, fov: 50, hop: false }
+    hop: false
   },
   {
     id: 'venetie', city: 'Venetië', name: 'Canal Grande', ends: ['Piazzale Roma', 'San Marco'],
     path: VENICE_PATH, bridges: VENICE_BRIDGES, water: 0,
     bridgeUnder: 0, bridgeOver: 14, hopRamp: 30, maxHeight: 80,
     build: { smoothSigma: 9, headingSigma: 16, trimStart: 25 },
-    defaults: { speed: 8, height: 25, pitch: 25, fov: 50, hop: false }
+    hop: false
   },
   {
     id: 'newyork', city: 'New York', name: 'East River', ends: ['Lower Manhattan', 'Williamsburg'],
     path: NYC_PATH, bridges: NYC_BRIDGES, water: 0,
     bridgeUnder: 36, bridgeOver: 65, hopRamp: 90, maxHeight: 150,
     build: { step: 2, smoothSigma: 20, headingSigma: 40, bridgeDist: 70 },
-    defaults: { speed: 12, height: 30, pitch: 8, fov: 55, hop: true }
+    hop: true
   }
 ];
 
@@ -635,40 +639,35 @@ function cameraAt(def, route, s, st) {
 (() => {
   'use strict';
 
+  /* Er wordt niets in localStorage bewaard. Alleen een zelf ingevoerde API-sleutel staat
+     tijdelijk in sessionStorage (verdwijnt bij het sluiten van het tabblad). */
   const LS = 'oudegracht3d:';
   const store = {
-    get(k) { try { return localStorage.getItem(LS + k); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem(LS + k, v); } catch { /* geen opslag */ } },
-    del(k) { try { localStorage.removeItem(LS + k); } catch { /* geen opslag */ } },
     sget(k) { try { return sessionStorage.getItem(LS + k); } catch { return null; } },
     sset(k, v) { try { sessionStorage.setItem(LS + k, v); } catch { /* geen opslag */ } },
     sdel(k) { try { sessionStorage.removeItem(LS + k); } catch { /* geen opslag */ } }
   };
-  const parse = (s) => { try { return JSON.parse(s || 'null'); } catch { return null; } };
+  // Opruimen wat eerdere versies van deze pagina in localStorage hebben gezet.
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(LS)) localStorage.removeItem(k);
+  } catch { /* geen toegang tot opslag */ }
 
   /* ---------- routes ---------- */
   const built = Object.fromEntries(ROUTES.map((d) => [d.id, buildRoute(d.path, d.bridges, d.build)]));
-  const routeDefaults = (def) => ({ ...def.defaults, dir: 1, water: def.water });
-  // Instellingen per route; de eerdere (alleen-Utrecht) instellingen worden overgenomen.
-  const settingsKey = (def) => 'settings-v3:' + def.id;
+  const startPos = (r) => r.L * START_FRACTION;
+  // Een gemeten waterpeil geldt alleen zolang de pagina open is.
+  const waterMemory = {};
   function loadSettings(def) {
-    const st = routeDefaults(def);
-    let saved = parse(store.get(settingsKey(def)));
-    if (!saved && def.id === 'utrecht') {
-      saved = parse(store.get('settings-v2'));
-      const old = parse(store.get('settings'));
-      if (old && typeof old.water === 'number') saved = { water: old.water, ...(saved || {}) };
-    }
-    if (saved) for (const k of Object.keys(st)) if (typeof saved[k] === typeof st[k]) st[k] = saved[k];
+    const st = { ...RUN_DEFAULTS, hop: def.hop, dir: 1, water: waterMemory[def.id] ?? def.water };
     st.height = Math.min(st.height, def.maxHeight);
     return st;
   }
 
-  const fromUrl = new URLSearchParams(location.search).get('route');
-  let def = ROUTES.find((r) => r.id === fromUrl) || ROUTES[0];
+  // Bij het laden van de pagina altijd in Utrecht beginnen.
+  let def = ROUTES[0];
   let route = built[def.id];
   let st = loadSettings(def);
-  const saveSettings = () => store.set(settingsKey(def), JSON.stringify(st));
+  const saveSettings = () => { waterMemory[def.id] = st.water; };
 
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -680,11 +679,11 @@ function cameraAt(def, route, s, st) {
     pitch: $('pitch'), pitchOut: $('pitchOut'), fov: $('fov'), fovOut: $('fovOut'), hop: $('hop'),
     lowest: $('lowest'), calib: $('calib'), waterReset: $('waterReset'), waterOut: $('waterOut'), camAlt: $('camAlt'),
     resetAll: $('resetAll'), changeKey: $('changeKey'), status: $('status'), statusText: $('statusText'), hint: $('hint'),
-    keyDlg: $('keyDlg'), keyForm: $('keyForm'), keyInput: $('keyInput'), remember: $('remember'), mini: $('mini')
+    keyDlg: $('keyDlg'), keyForm: $('keyForm'), keyInput: $('keyInput'), mini: $('mini')
   };
 
   let map = null, hasCameraPosition = false;
-  let s = 0, playing = false, ended = false, needsApply = true, calibrating = false, mapReady = false;
+  let s = startPos(route), playing = false, ended = false, needsApply = true, calibrating = false, mapReady = false;
   let flying = false, routeToken = 0, onFlightEnd = null;
   let lastT = performance.now(), lastUi = 0;
 
@@ -729,10 +728,12 @@ function cameraAt(def, route, s, st) {
       : 'In het 3D-model zijn de bruggen massief: onder een brug door zie je even het binnenste van het model. Zet dit aan om er soepel overheen te wippen.';
     if (map) { try { map.description = `3D-vlucht over ${def.name} in ${def.city}`; } catch { /* niet ondersteund */ } }
   }
+  // De pagina begint altijd in Utrecht; een oude ?route=… uit eerdere links halen we weg.
   function updateUrl() {
     try {
       const u = new URL(location.href);
-      u.searchParams.set('route', def.id);
+      if (!u.searchParams.has('route')) return;
+      u.searchParams.delete('route');
       history.replaceState(null, '', u.toString());
     } catch { /* bijv. file:// in sommige browsers */ }
   }
@@ -829,7 +830,7 @@ function cameraAt(def, route, s, st) {
   function setPlaying(on) {
     if (on && !mapReady) return;
     if (on) cancelFlight();
-    if (on && ended) { s = 0; ended = false; }
+    if (on && ended) { nextCity(); return; }   // aan het eind: door naar de volgende stad
     playing = on;
     el.play.classList.toggle('is-playing', on);
     el.play.setAttribute('aria-label', on ? 'Pauzeren' : 'Afspelen');
@@ -848,8 +849,12 @@ function cameraAt(def, route, s, st) {
     lastT = t;
     if (playing) {
       s += st.speed * dt;
-      if (s >= route.L) { s = route.L; ended = true; setPlaying(false); }
       needsApply = true;
+      if (s >= route.L) {
+        s = route.L; ended = true; setPlaying(false);
+        const c = applyCamera(); updateUi(c, true);
+        nextCity();
+      }
     }
     if (needsApply && !flying) {
       needsApply = false;
@@ -876,7 +881,14 @@ function cameraAt(def, route, s, st) {
     setTimeout(finish, ms);
   }
 
-  /* Andere route kiezen; met fly=true vliegt de camera over de wereldbol naar de nieuwe stad. */
+  /* Na de laatste stad weer naar de eerste. */
+  function nextCity() {
+    const i = ROUTES.indexOf(def);
+    setRoute(ROUTES[(i + 1) % ROUTES.length].id, true);
+  }
+
+  /* Andere route kiezen; met fly=true vliegt de camera over de wereldbol naar de nieuwe stad.
+     Elke nieuwe run begint met de standaardinstellingen en op 1/3 van de route. */
   function setRoute(id, fly) {
     const next = ROUTES.find((r) => r.id === id);
     if (!next) return;
@@ -884,9 +896,9 @@ function cameraAt(def, route, s, st) {
     setPlaying(false);
     calibrating = false; el.hint.hidden = true;
     def = next; route = built[def.id]; st = loadSettings(def);
-    s = 0; ended = false;
+    s = startPos(route); ended = false;
     updateTexts(); syncControls(); drawMini(); updateUrl();
-    const c = cameraAt(def, route, 0, st);
+    const c = cameraAt(def, route, s, st);
     updateMini(c); updateUi(c, true);
     if (!map || !fly || !mapReady) { needsApply = true; return; }
 
@@ -913,7 +925,7 @@ function cameraAt(def, route, s, st) {
 
   /* ---------- bediening ---------- */
   el.play.addEventListener('click', () => setPlaying(!playing));
-  el.restart.addEventListener('click', () => { seekTo(0); ended = false; if (mapReady) setPlaying(true); });
+  el.restart.addEventListener('click', () => { seekTo(startPos(route)); if (mapReady) setPlaying(true); });
   el.scrub.addEventListener('input', () => { seekTo(+el.scrub.value); fill(el.scrub); });
 
   el.settingsBtn.addEventListener('click', () => {
@@ -962,10 +974,9 @@ function cameraAt(def, route, s, st) {
   });
   el.waterReset.addEventListener('click', () => { st.water = def.water; syncControls(); saveSettings(); needsApply = true; });
   el.resetAll.addEventListener('click', () => {
-    st = routeDefaults(def); store.del(settingsKey(def));
-    if (s > route.L) s = route.L;
+    st = { ...loadSettings(def), dir: st.dir, water: st.water };
     syncControls(); needsApply = true;
-    showHint(`Standaardinstellingen voor ${def.city} hersteld.`, 2500);
+    showHint('Standaardinstellingen hersteld.', 2500);
   });
 
   document.addEventListener('keydown', (e) => {
@@ -975,7 +986,7 @@ function cameraAt(def, route, s, st) {
       if (e.target.tagName === 'BUTTON' || e.target.type === 'checkbox') return;
       e.preventDefault(); setPlaying(!playing);
     }
-    else if (e.key === 'r' || e.key === 'R') { seekTo(0); ended = false; if (mapReady) setPlaying(true); }
+    else if (e.key === 'r' || e.key === 'R') { seekTo(startPos(route)); if (mapReady) setPlaying(true); }
     else if (e.key === 'ArrowRight' && e.target.type !== 'range') { seekTo(s + 25); }
     else if (e.key === 'ArrowLeft' && e.target.type !== 'range') { seekTo(s - 25); }
     else if (e.key === 'Escape') { el.settings.hidden = true; el.settingsBtn.setAttribute('aria-expanded', 'false'); calibrating = false; el.hint.hidden = true; }
@@ -1007,20 +1018,19 @@ function cameraAt(def, route, s, st) {
   function currentKey() {
     const fromParam = new URLSearchParams(location.search).get('key');
     // Een zelf ingevoerde sleutel ("Andere API-sleutel gebruiken") gaat voor de vaste sleutel.
-    return fromParam || store.sget('key') || store.get('key') || API_KEY || '';
+    return fromParam || store.sget('key') || API_KEY || '';
   }
   function askKey() {
     el.keyInput.value = '';
     el.keyDlg.hidden = false;
     setTimeout(() => el.keyInput.focus(), 50);
   }
-  el.changeKey.addEventListener('click', () => { store.del('key'); store.sdel('key'); askKey(); });
+  el.changeKey.addEventListener('click', () => { store.sdel('key'); askKey(); });
   el.keyForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const key = el.keyInput.value.trim();
     if (!key) return;
-    store.del('key'); store.sdel('key');
-    if (el.remember.checked) store.set('key', key); else store.sset('key', key);
+    store.sset('key', key);
     if (window.google && window.google.maps) {
       // De Maps-bibliotheek laadt maar één keer per pagina: herladen met de nieuwe sleutel.
       const u = new URL(location.href); u.searchParams.delete('key');
