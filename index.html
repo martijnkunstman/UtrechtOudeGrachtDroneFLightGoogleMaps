@@ -328,9 +328,10 @@
 
 <script>
 /* ======================================================================
-   Optioneel: zet hier je Google Maps API-sleutel, dan vraagt de pagina er niet om.
+   Google Maps API-sleutel. Deze staat zichtbaar in de broncode, dus beperk hem
+   in Google Cloud tot je eigen website(s) en tot de Maps JavaScript API.
    ====================================================================== */
-const API_KEY = '';
+const API_KEY = 'AIzaSyD3xQG3A2tr7NCEZOYDeZ_CjwHs8YHwBZY';
 
 // === ROUTE DATA ===
 // Middellijn van de Oudegracht (OpenStreetMap, © OpenStreetMap-bijdragers, ODbL),
@@ -762,7 +763,8 @@ function cameraAt(route, s, st) {
   /* ---------- API-sleutel ---------- */
   function currentKey() {
     const fromUrl = new URLSearchParams(location.search).get('key');
-    return fromUrl || API_KEY || store.sget('key') || store.get('key') || '';
+    // Een zelf ingevoerde sleutel ("Andere API-sleutel gebruiken") gaat voor de vaste sleutel.
+    return fromUrl || store.sget('key') || store.get('key') || API_KEY || '';
   }
   function askKey() {
     el.keyInput.value = '';

@@ -7,16 +7,19 @@ from Tolsteeg to just past the Weerdbrug (about 1.9 km).
 
 ## Running it
 
-1. Get a Google Maps API key with the **Maps JavaScript API** enabled and billing
-   active on the Google Cloud project.
-2. Open `index.html` in a recent desktop browser (Chrome works best).
-3. Enter the key when asked. You can also:
-   - put it in `API_KEY` at the top of the script in `index.html`, or
-   - pass it in the URL: `index.html?key=YOUR_KEY`.
+Open `index.html` in a recent desktop browser (Chrome works best). A Google Maps
+API key is set in `API_KEY` at the top of the script, so the flight starts straight away.
 
-If you open the file straight from disk, use a key without website restrictions.
-When hosting (for example with GitHub Pages), restrict the key to your own domain
-instead, and don't commit an unrestricted key to the repository.
+To use a different key:
+- replace `API_KEY` in `index.html` with your own key (Maps JavaScript API enabled,
+  billing active on the Google Cloud project),
+- pass it in the URL: `index.html?key=YOUR_KEY`, or
+- click *Andere API-sleutel gebruiken* in the settings and enter it there.
+
+The key is visible to anyone who views the page or this repository. In the Google
+Cloud console, restrict it to your own websites (HTTP referrers, for example
+`https://martijnkunstman.github.io/*`) and to the Maps JavaScript API only, so others
+can't use it on your bill.
 
 ## Controls
 
