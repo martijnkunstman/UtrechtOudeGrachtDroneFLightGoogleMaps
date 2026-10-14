@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oudegracht vanaf het water</title>
+<meta name="description" content="3D-vaart over de Oudegracht in Utrecht met Google Maps 3D: laag boven het water, camera vooruit, door alle bochten.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel: rgba(15, 18, 23, 0.80);
+    --panel-solid: rgba(17, 21, 27, 0.94);
+    --line: rgba(255, 255, 255, 0.12);
+    --text: #f2eee7;
+    --muted: #a7a299;
+    --accent: #d8774a;      /* baksteen van de werven */
+    --accent-soft: #f0a77f;
+    --water: #6db3ae;
+    --danger: #ff8f7a;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #0b0d10; color: var(--text);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  #map { position: fixed; inset: 0; }
+  #map gmp-map-3d { display: block; width: 100%; height: 100%; }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  }
+
+  /* ---------- titel ---------- */
+  .brand {
+    position: fixed; top: 16px; left: 16px;
+    padding: 12px 16px 13px; border-radius: 14px;
+    max-width: calc(100% - 140px);
+    pointer-events: none;
+  }
+  .eyebrow { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .brand h1 {
+    margin: 2px 0 0; font-family: Fraunces, Georgia, serif; font-style: italic; font-weight: 500;
+    font-size: 27px; line-height: 1.1; letter-spacing: -.01em;
+  }
+  .brand p { margin: 5px 0 0; font-size: 13px; color: var(--accent-soft); min-height: 1.25em; }
+
+  /* ---------- overzichtskaartje ---------- */
+  .mini {
+    position: fixed; top: 16px; right: 16px;
+    width: 92px; height: 272px; padding: 8px; border-radius: 14px;
+  }
+  .mini svg { width: 100%; height: 100%; display: block; cursor: pointer; overflow: visible; }
+
+  /* ---------- bedieningsbalk ---------- */
+  .bar {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(38px + env(safe-area-inset-bottom));
+    width: min(780px, calc(100% - 32px));
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 20px;
+  }
+  .play {
+    width: 50px; height: 50px; border-radius: 50%; border: 0; flex: none;
+    background: var(--accent); color: #1b0f09;
+    display: grid; place-items: center;
+    transition: transform .15s ease, background .15s ease;
+  }
+  .play:hover { background: #e2875b; }
+  .play:active { transform: scale(.95); }
+  .play svg { width: 22px; height: 22px; }
+  .play .i-pause { display: none; }
+  .play.is-playing .i-play { display: none; }
+  .play.is-playing .i-pause { display: block; }
+
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 12px; flex: none;
+    background: transparent; border: 1px solid var(--line);
+    display: grid; place-items: center;
+    transition: background .15s ease;
+  }
+  .icon-btn:hover, .icon-btn[aria-expanded="true"] { background: rgba(255, 255, 255, .08); }
+  .icon-btn svg { width: 19px; height: 19px; }
+
+  .track { flex: 1; min-width: 0; }
+  .track-top {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    font-size: 12.5px; color: var(--muted); margin-bottom: 4px;
+  }
+  #section { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ---------- schuifregelaars ---------- */
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 22px; margin: 0; background: transparent; cursor: pointer;
+    --p: 0%;
+  }
+  input[type=range]:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: 6px; }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 4px;
+    background: linear-gradient(to right, var(--accent) var(--p), rgba(255, 255, 255, .18) var(--p));
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 15px; height: 15px; margin-top: -5.5px;
+    border-radius: 50%; background: #fff; border: 0;
+    box-shadow: 0 0 0 4px rgba(216, 119, 74, .32);
+  }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .18); }
+  input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
+  input[type=range]::-moz-range-thumb {
+    width: 15px; height: 15px; border-radius: 50%; background: #fff; border: 0;
+    box-shadow: 0 0 0 4px rgba(216, 119, 74, .32);
+  }
+
+  /* ---------- instellingen ---------- */
+  .settings {
+    position: fixed;
+    right: max(16px, calc(50% - 390px));
+    bottom: calc(112px + env(safe-area-inset-bottom));
+    width: 320px; max-width: calc(100% - 32px);
+    max-height: calc(100% - 140px); overflow: auto;
+    padding: 14px 16px 12px; border-radius: 18px;
+    background: var(--panel-solid);
+  }
+  .settings h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .row { padding: 7px 0; }
+  .row + .row { border-top: 1px solid rgba(255, 255, 255, .06); }
+  .row label, .row .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; margin-bottom: 3px; }
+  .row output, .row .val { color: var(--accent-soft); font-variant-numeric: tabular-nums; }
+  .row small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.4; margin-top: 2px; }
+  .row.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .row.toggle label { margin: 0; }
+  .switch { position: relative; width: 40px; height: 23px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .switch span {
+    position: absolute; inset: 0; border-radius: 99px; background: rgba(255, 255, 255, .2);
+    transition: background .15s ease; pointer-events: none;
+  }
+  .switch span::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px;
+    border-radius: 50%; background: #fff; transition: transform .15s ease;
+  }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(17px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+
+  .segmented { display: flex; background: rgba(255, 255, 255, .07); border-radius: 10px; padding: 3px; gap: 3px; margin-top: 4px; }
+  .segmented button {
+    flex: 1; border: 0; background: transparent; border-radius: 8px; padding: 6px 8px; font-size: 12.5px; color: var(--muted);
+  }
+  .segmented button[aria-pressed="true"] { background: rgba(255, 255, 255, .14); color: var(--text); }
+
+  .btn {
+    border: 1px solid var(--line); background: rgba(255, 255, 255, .06);
+    border-radius: 10px; padding: 7px 11px; font-size: 12.5px;
+  }
+  .btn:hover { background: rgba(255, 255, 255, .12); }
+  .btn.accent { background: var(--accent); border-color: transparent; color: #1b0f09; font-weight: 600; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 7px; }
+  .linkish { border: 0; background: none; padding: 0; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------- meldingen ---------- */
+  .status {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    padding: 14px 20px; border-radius: 14px; font-size: 14px;
+    display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px);
+  }
+  .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .2); border-top-color: var(--accent); animation: spin .9s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hint {
+    position: fixed; left: 50%; top: 18px; transform: translateX(-50%);
+    padding: 10px 16px; border-radius: 12px; font-size: 13.5px; border-color: rgba(216, 119, 74, .6);
+    max-width: calc(100% - 32px); text-align: center;
+  }
+  .error { color: var(--danger); }
+
+  /* ---------- sleutelvenster ---------- */
+  .modal {
+    position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; z-index: 10;
+    background:
+      radial-gradient(1200px 600px at 20% 110%, rgba(109, 179, 174, .18), transparent 60%),
+      radial-gradient(900px 500px at 90% -10%, rgba(216, 119, 74, .16), transparent 60%),
+      #0b0d10;
+  }
+  .card {
+    width: min(460px, 100%); padding: 24px 24px 20px; border-radius: 20px;
+    background: var(--panel-solid); border: 1px solid var(--line);
+  }
+  .card h2 { margin: 2px 0 8px; font-family: Fraunces, Georgia, serif; font-style: italic; font-weight: 500; font-size: 28px; }
+  .card p { margin: 0 0 12px; color: #d6d1c8; font-size: 14px; line-height: 1.5; }
+  .card input[type=text] {
+    width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .06); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+  }
+  .card input[type=text]:focus { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+  .card .check input { accent-color: var(--accent); }
+  .card .check { display: flex; align-items: center; gap: 8px; margin: 10px 0 16px; font-size: 13px; color: var(--muted); }
+  .card .primary { width: 100%; padding: 12px; border-radius: 12px; border: 0; background: var(--accent); color: #1b0f09; font-weight: 600; font-size: 15px; }
+  .card .fine { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
+  .card code { font-size: 11.5px; background: rgba(255, 255, 255, .08); padding: 1px 5px; border-radius: 5px; }
+
+  @media (max-width: 640px) {
+    .brand { top: 10px; left: 10px; padding: 9px 12px 10px; }
+    .brand h1 { font-size: 21px; }
+    .mini { top: 10px; right: 10px; width: 64px; height: 196px; padding: 6px; }
+    .bar { width: calc(100% - 20px); gap: 8px; padding: 8px 10px; bottom: calc(34px + env(safe-area-inset-bottom)); }
+    .play { width: 44px; height: 44px; }
+    #restart { display: none; }
+    .settings { left: 10px; right: 10px; width: auto; max-width: none; bottom: calc(100px + env(safe-area-inset-bottom)); }
+  }
+</style>
+</head>
+<body>
+
+<div id="map" aria-label="3D-kaart"></div>
+
+<div class="brand glass">
+  <div class="eyebrow">Utrecht · vanaf het water</div>
+  <h1>Oudegracht</h1>
+  <p id="where"></p>
+</div>
+
+<div class="mini glass" title="Klik om naar een punt op de route te springen">
+  <svg id="mini" aria-label="Overzicht van de route"></svg>
+</div>
+
+<div class="bar glass" role="group" aria-label="Bediening">
+  <button id="play" class="play" aria-label="Afspelen" title="Afspelen / pauzeren (spatie)">
+    <svg class="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+    <svg class="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></svg>
+  </button>
+  <button id="restart" class="icon-btn" aria-label="Opnieuw beginnen" title="Opnieuw beginnen (R)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg>
+  </button>
+  <div class="track">
+    <div class="track-top">
+      <span id="section">Route laden…</span>
+      <span id="dist" class="num"></span>
+    </div>
+    <input id="scrub" type="range" min="0" max="1" step="0.1" value="0" aria-label="Positie op de route">
+  </div>
+  <button id="settingsBtn" class="icon-btn" aria-label="Instellingen" aria-expanded="false" aria-controls="settings" title="Instellingen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+  </button>
+</div>
+
+<div id="settings" class="settings glass" hidden>
+  <h2>Instellingen</h2>
+
+  <div class="row">
+    <label for="speed">Snelheid <output id="speedOut"></output></label>
+    <input id="speed" type="range" min="1" max="25" step="0.5">
+  </div>
+
+  <div class="row">
+    <label for="height">Hoogte boven het water <output id="heightOut"></output></label>
+    <input id="height" type="range" min="0.2" max="40" step="0.1">
+    <div class="btn-row"><button id="lowest" class="btn">Zo laag mogelijk</button></div>
+  </div>
+
+  <div class="row toggle">
+    <div>
+      <label for="hop">Over bruggen heen</label>
+      <small>In het 3D-model zijn de bruggen massief: onder een brug door zie je even het binnenste van het model. Zet dit aan om er soepel overheen te wippen.</small>
+    </div>
+    <span class="switch"><input id="hop" type="checkbox"><span></span></span>
+  </div>
+
+  <div class="row">
+    <span class="lbl">Vaarrichting</span>
+    <div class="segmented" role="group" aria-label="Vaarrichting">
+      <button data-dir="1" aria-pressed="true">Naar de Weerdsluis</button>
+      <button data-dir="-1" aria-pressed="false">Naar Tolsteeg</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <label for="pitch">Blik omlaag <output id="pitchOut"></output></label>
+    <input id="pitch" type="range" min="0" max="25" step="0.5">
+  </div>
+
+  <div class="row">
+    <label for="fov">Beeldhoek <output id="fovOut"></output></label>
+    <input id="fov" type="range" min="30" max="80" step="1">
+  </div>
+
+  <div class="row">
+    <span class="lbl">Waterpeil <span class="val" id="waterOut"></span></span>
+    <small>Hoogte van het water in het 3D-model (m t.o.v. zeeniveau). Klopt het niet, pauzeer dan en meet het: klik daarna op het water in beeld.</small>
+    <div class="btn-row">
+      <button id="calib" class="btn">Meet op de kaart</button>
+      <button id="waterReset" class="btn">Standaard</button>
+    </div>
+    <small id="camAlt"></small>
+  </div>
+
+  <div class="row">
+    <button id="changeKey" class="linkish">Andere API-sleutel gebruiken</button>
+  </div>
+</div>
+
+<div id="status" class="status glass" hidden><span class="spinner"></span><span id="statusText">Laden…</span></div>
+<div id="hint" class="hint glass" hidden></div>
+
+<div id="keyDlg" class="modal" hidden>
+  <form id="keyForm" class="card" autocomplete="off">
+    <div class="eyebrow">Oudegracht · 3D</div>
+    <h2>Google Maps-sleutel</h2>
+    <p>De fotorealistische 3D-kaart komt van Google Maps en heeft jouw eigen API-sleutel nodig, met de <b>Maps JavaScript API</b> ingeschakeld in Google Cloud.</p>
+    <input id="keyInput" type="text" spellcheck="false" placeholder="AIza…" aria-label="Google Maps API-sleutel" required>
+    <label class="check"><input id="remember" type="checkbox" checked> Onthoud op dit apparaat</label>
+    <button type="submit" class="primary">Start de vaart</button>
+    <p class="fine">Je kunt de sleutel ook vast in dit bestand zetten (<code>API_KEY</code> bovenin het script) of meegeven als <code>?key=…</code> achter de bestandsnaam.</p>
+  </form>
+</div>
+
+<script>
+/* ======================================================================
+   Optioneel: zet hier je Google Maps API-sleutel, dan vraagt de pagina er niet om.
+   ====================================================================== */
+const API_KEY = '';
+
+// === ROUTE DATA ===
+// Middellijn van de Oudegracht (OpenStreetMap, © OpenStreetMap-bijdragers, ODbL),
+// van de noordkant van de tunnel onder de Bijlhouwersbrug (Tolsteeg) tot voorbij de Weerdbrug.
+const RAW_PATH = [
+  [52.081831,5.123457],[52.082157,5.122907],[52.082322,5.122777],[52.082521,5.122712],[52.082674,5.122728],
+  [52.082961,5.122772],[52.083331,5.122846],[52.083804,5.123026],[52.083844,5.123026],[52.084078,5.122984],
+  [52.084495,5.122906],[52.085091,5.122632],[52.08573,5.122386],[52.086074,5.122264],[52.086126,5.122246],
+  [52.08635,5.122166],[52.08645,5.122133],[52.087142,5.121905],[52.087302,5.12185],[52.088175,5.121539],
+  [52.088364,5.121468],[52.088402,5.121454],[52.088439,5.121441],[52.088749,5.121315],[52.088896,5.121274],
+  [52.089053,5.121227],[52.089204,5.121169],[52.089293,5.121127],[52.089413,5.121071],[52.089529,5.121005],
+  [52.089645,5.120916],[52.089819,5.120765],[52.090019,5.120593],[52.090328,5.12042],[52.090393,5.120397],
+  [52.090691,5.120275],[52.090939,5.12022],[52.091017,5.12019],[52.091152,5.120127],[52.091289,5.120012],
+  [52.091365,5.119929],[52.091409,5.119858],[52.091646,5.119462],[52.091657,5.119408],[52.091691,5.119241],
+  [52.091704,5.11909],[52.091675,5.118765],[52.091658,5.11842],[52.091654,5.11833],[52.09165,5.118019],
+  [52.091672,5.117682],[52.091715,5.117356],[52.091763,5.117227],[52.091803,5.117119],[52.091926,5.116923],
+  [52.09202,5.116836],[52.092135,5.116795],[52.092357,5.116853],[52.09243,5.116869],[52.092757,5.116928],
+  [52.093012,5.11691],[52.093284,5.116859],[52.093405,5.116809],[52.093604,5.116742],[52.093928,5.116643],
+  [52.094304,5.116597],[52.094888,5.116612],[52.095506,5.116494],[52.095866,5.116299],[52.096069,5.11617],
+  [52.096178,5.116109],[52.096291,5.116043],[52.096469,5.115863],[52.0967985,5.1154905]
+];
+
+// Brugdekken boven de Oudegracht (omtrekken uit OpenStreetMap).
+const BRIDGES = [
+  { name: 'Vollersbrug',   pts: [[52.083874,5.122913],[52.083873,5.12316],[52.083811,5.123158],[52.083814,5.122911]] },
+  { name: 'Geertebrug',    pts: [[52.085064,5.122765],[52.08513,5.122731],[52.085103,5.122518],[52.085035,5.122556]] },
+  { name: 'Smeebrug',      pts: [[52.08637,5.122002],[52.086258,5.12203],[52.086299,5.122314],[52.086419,5.122274]] },
+  { name: 'Weesbrug',      pts: [[52.087298,5.12175],[52.087236,5.12177],[52.087263,5.121992],[52.087325,5.121974]] },
+  { name: 'Hamburgerbrug', pts: [[52.088444,5.121531],[52.088378,5.121553],[52.088355,5.121368],[52.088421,5.121346]] },
+  { name: 'Gaardbrug',     pts: [[52.089249,5.121259],[52.089213,5.12105],[52.089148,5.121078],[52.089184,5.121287]] },
+  { name: 'Maartensbrug',  pts: [[52.09046,5.12045],[52.090431,5.120275],[52.090323,5.120298],[52.090337,5.120502]] },
+  { name: 'Zoutmarkt',     pts: [[52.09099,5.120113],[52.090758,5.120182],[52.090774,5.120317],[52.091005,5.12025]] },
+  { name: 'Stadhuisbrug',  pts: [[52.091415,5.119762],[52.091629,5.119392],[52.091647,5.119279],[52.091733,5.11928],
+                                 [52.091687,5.119448],[52.091491,5.119786],[52.091431,5.119878],[52.091391,5.119799],
+                                 [52.091544,5.119265],[52.091335,5.119633],[52.091499,5.119977],[52.09178,5.119319]] },
+  { name: 'Bezembrug',     pts: [[52.091698,5.11845],[52.09162,5.118466],[52.091619,5.118385],[52.091696,5.118372]] },
+  { name: 'Bakkerbrug',    pts: [[52.091738,5.117066],[52.09168,5.117228],[52.091797,5.117339],[52.091859,5.117177]] },
+  { name: 'Jansbrug',      pts: [[52.092461,5.116836],[52.092444,5.116953],[52.092394,5.11693],[52.09241,5.116813]] },
+  { name: 'Viebrug',       pts: [[52.093483,5.116587],[52.093545,5.11687],[52.093341,5.116972],[52.09329,5.116737]] },
+  { name: 'Jacobibrug',    pts: [[52.094919,5.1165],[52.094931,5.116704],[52.094865,5.116714],[52.094853,5.11651]] },
+  { name: 'Zandbrug',      pts: [[52.0962,5.116023],[52.096131,5.11607],[52.096152,5.116178],[52.096227,5.116145]] },
+  { name: 'Weerdbrug',     pts: [[52.096442,5.116169],[52.096431,5.116125],[52.09656,5.116042],[52.096583,5.116135]] }
+];
+
+// === ROUTE LOGIC ===
+/* Bouwt een vloeiende route: herbemonsteren per meter, gladstrijken zodat de knikken uit de
+   kaartdata verdwijnen, en per punt de vaarrichting (parallel aan de gracht) bepalen. */
+function buildRoute(raw, bridgeDefs, opt = {}) {
+  const step = opt.step ?? 1;              // meter tussen routepunten
+  const sigma = opt.smoothSigma ?? 6;      // gladstrijken van de lijn (m)
+  const hSigma = opt.headingSigma ?? 9;    // gladstrijken van de kijkrichting (m)
+  const trim = opt.trimStart ?? 10;        // begin net voorbij de tunnelmond
+
+  const lat0 = raw.reduce((a, p) => a + p[0], 0) / raw.length;
+  const lon0 = raw.reduce((a, p) => a + p[1], 0) / raw.length;
+  const phi = lat0 * Math.PI / 180;
+  const mLat = 111132.954 - 559.822 * Math.cos(2 * phi) + 1.175 * Math.cos(4 * phi);
+  const mLon = 111412.84 * Math.cos(phi) - 93.5 * Math.cos(3 * phi) + 0.118 * Math.cos(5 * phi);
+  const toXY = ([la, lo]) => [(lo - lon0) * mLon, (la - lat0) * mLat];
+  const toLL = (x, y) => ({ lat: lat0 + y / mLat, lng: lon0 + x / mLon });
+
+  const resample = (pts) => {
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) {
+      cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    }
+    const total = cum[cum.length - 1], out = [];
+    let j = 0;
+    for (let k = 0; k * step <= total + 1e-9; k++) {
+      const d = k * step;
+      while (j < pts.length - 2 && cum[j + 1] < d) j++;
+      const seg = (cum[j + 1] - cum[j]) || 1e-9;
+      const t = Math.min(1, Math.max(0, (d - cum[j]) / seg));
+      out.push([pts[j][0] + (pts[j + 1][0] - pts[j][0]) * t, pts[j][1] + (pts[j + 1][1] - pts[j][1]) * t]);
+    }
+    return out;
+  };
+
+  const kernel = (sig) => {
+    const r = Math.max(1, Math.ceil(sig * 3)), w = [];
+    for (let k = -r; k <= r; k++) w.push(Math.exp(-(k * k) / (2 * sig * sig)));
+    return { r, w };
+  };
+  // Gladstrijken met puntspiegeling aan de uiteinden, zodat begin en eind op hun plek blijven.
+  const smoothPts = (pts, sig) => {
+    const { r, w } = kernel(sig), n = pts.length, out = [];
+    const at = (i) => i < 0 ? [2 * pts[0][0] - pts[-i][0], 2 * pts[0][1] - pts[-i][1]]
+      : i >= n ? [2 * pts[n - 1][0] - pts[2 * (n - 1) - i][0], 2 * pts[n - 1][1] - pts[2 * (n - 1) - i][1]]
+      : pts[i];
+    for (let i = 0; i < n; i++) {
+      let sx = 0, sy = 0, sw = 0;
+      for (let k = -r; k <= r; k++) { const p = at(i + k), wk = w[k + r]; sx += p[0] * wk; sy += p[1] * wk; sw += wk; }
+      out.push([sx / sw, sy / sw]);
+    }
+    return out;
+  };
+  const smoothArr = (arr, sig) => {
+    const { r, w } = kernel(sig), n = arr.length, out = [];
+    const at = (i) => i < 0 ? 2 * arr[0] - arr[-i] : i >= n ? 2 * arr[n - 1] - arr[2 * (n - 1) - i] : arr[i];
+    for (let i = 0; i < n; i++) {
+      let s = 0, sw = 0;
+      for (let k = -r; k <= r; k++) { s += at(i + k) * w[k + r]; sw += w[k + r]; }
+      out.push(s / sw);
+    }
+    return out;
+  };
+
+  let pts = resample(raw.map(toXY));
+  pts = smoothPts(pts, sigma / step);
+  pts = resample(pts);
+  pts = pts.slice(Math.round(trim / step));
+  const n = pts.length;
+  const L = (n - 1) * step;
+
+  // Richting van de gracht (kompaskoers: noord = 0, oost = 90), daarna gladgestreken.
+  const k = Math.max(1, Math.round(3 / step));
+  let ang = pts.map((_, i) => {
+    const a = pts[Math.max(0, i - k)], b = pts[Math.min(n - 1, i + k)];
+    return Math.atan2(b[0] - a[0], b[1] - a[1]);
+  });
+  for (let i = 1; i < n; i++) {
+    while (ang[i] - ang[i - 1] > Math.PI) ang[i] -= 2 * Math.PI;
+    while (ang[i] - ang[i - 1] < -Math.PI) ang[i] += 2 * Math.PI;
+  }
+  ang = smoothArr(ang, hSigma / step);
+
+  const sample = (s) => {
+    const f = Math.min(n - 1, Math.max(0, s / step));
+    const i = Math.min(n - 2, Math.floor(f)), t = f - i;
+    const x = pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t;
+    const y = pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t;
+    let heading = ((ang[i] + (ang[i + 1] - ang[i]) * t) * 180 / Math.PI) % 360;
+    if (heading < 0) heading += 360;
+    const ll = toLL(x, y);
+    return { x, y, heading, lat: ll.lat, lng: ll.lng };
+  };
+
+  const nearestXY = (x, y) => {
+    let best = Infinity, bi = 0;
+    for (let i = 0; i < n; i++) {
+      const d = (pts[i][0] - x) ** 2 + (pts[i][1] - y) ** 2;
+      if (d < best) { best = d; bi = i; }
+    }
+    return { s: bi * step, dist: Math.sqrt(best) };
+  };
+  const project = (ll) => { const [x, y] = toXY(ll); return nearestXY(x, y); };
+
+  const bridges = bridgeDefs.map((b) => {
+    const pr = b.pts.map(project).filter((q) => q.dist < 40);
+    if (!pr.length) return null;
+    const a = Math.min(...pr.map((q) => q.s)), z = Math.max(...pr.map((q) => q.s));
+    return { name: b.name, a, b: z, mid: (a + z) / 2 };
+  }).filter((b) => b && b.b > 2 && b.a < L - 2).sort((p, q) => p.mid - q.mid);
+
+  return { L, n, step, pts, ang, sample, toXY, toLL, nearestXY, project, bridges };
+}
+
+/* 0..1: hoe ver de camera omhoog moet om over een brug te gaan (zachte cosinus-overgang). */
+function hopFactor(s, bridges, margin = 2, ramp = 16) {
+  let f = 0;
+  for (const b of bridges) {
+    const d = s < b.a - margin ? (b.a - margin) - s : s > b.b + margin ? s - (b.b + margin) : 0;
+    const v = d <= 0 ? 1 : d < ramp ? 0.5 * (1 + Math.cos(Math.PI * d / ramp)) : 0;
+    if (v > f) f = v;
+  }
+  return f;
+}
+
+const HOP_CLEAR = 7.5;   // m boven het water bij het passeren van een brug
+const LOOK_RANGE = 30;   // m tussen camera en het punt waar de kaart om draait
+
+/* Camerastand voor afgelegde afstand s (in vaarrichting). */
+function cameraAt(route, s, st) {
+  const pos = st.dir > 0 ? s : route.L - s;
+  const p = route.sample(pos);
+  const heading = (p.heading + (st.dir > 0 ? 0 : 180)) % 360;
+  const lift = st.hop ? Math.max(0, HOP_CLEAR - st.height) * hopFactor(pos, route.bridges) : 0;
+  const altitude = st.water + st.height + lift;
+  const tilt = 90 - st.pitch;
+  const r = Math.PI / 180;
+  const horiz = LOOK_RANGE * Math.sin(tilt * r), vert = LOOK_RANGE * Math.cos(tilt * r);
+  const c = route.toLL(p.x + Math.sin(heading * r) * horiz, p.y + Math.cos(heading * r) * horiz);
+  return {
+    pos, heading, tilt, range: LOOK_RANGE, lift,
+    camera: { lat: p.lat, lng: p.lng, altitude },
+    center: { lat: c.lat, lng: c.lng, altitude: altitude - vert }
+  };
+}
+// === END ROUTE LOGIC ===
+
+(() => {
+  'use strict';
+
+  const DEFAULTS = { speed: 5, height: 1.2, pitch: 4, fov: 60, hop: false, dir: 1, water: 0.5 };
+  const LS = 'oudegracht3d:';
+  const store = {
+    get(k) { try { return localStorage.getItem(LS + k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(LS + k, v); } catch { /* geen opslag */ } },
+    del(k) { try { localStorage.removeItem(LS + k); } catch { /* geen opslag */ } },
+    sget(k) { try { return sessionStorage.getItem(LS + k); } catch { return null; } },
+    sset(k, v) { try { sessionStorage.setItem(LS + k, v); } catch { /* geen opslag */ } },
+    sdel(k) { try { sessionStorage.removeItem(LS + k); } catch { /* geen opslag */ } }
+  };
+
+  const st = { ...DEFAULTS };
+  try {
+    const saved = JSON.parse(store.get('settings') || '{}');
+    for (const k of Object.keys(DEFAULTS)) if (typeof saved[k] === typeof DEFAULTS[k]) st[k] = saved[k];
+  } catch { /* negeer */ }
+  const saveSettings = () => store.set('settings', JSON.stringify(st));
+
+  const route = buildRoute(RAW_PATH, BRIDGES);
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    play: $('play'), restart: $('restart'), scrub: $('scrub'), section: $('section'), dist: $('dist'),
+    where: $('where'), settingsBtn: $('settingsBtn'), settings: $('settings'),
+    speed: $('speed'), speedOut: $('speedOut'), height: $('height'), heightOut: $('heightOut'),
+    pitch: $('pitch'), pitchOut: $('pitchOut'), fov: $('fov'), fovOut: $('fovOut'), hop: $('hop'),
+    lowest: $('lowest'), calib: $('calib'), waterReset: $('waterReset'), waterOut: $('waterOut'), camAlt: $('camAlt'),
+    changeKey: $('changeKey'), status: $('status'), statusText: $('statusText'), hint: $('hint'),
+    keyDlg: $('keyDlg'), keyForm: $('keyForm'), keyInput: $('keyInput'), remember: $('remember'), mini: $('mini')
+  };
+
+  let map = null, hasCameraPosition = false;
+  let s = 0, playing = false, ended = false, needsApply = true, calibrating = false, mapReady = false;
+  let lastT = performance.now(), lastUi = 0;
+
+  /* ---------- opmaak ---------- */
+  const nf = (v, d = 1) => v.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtTime = (sec) => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+  const fill = (input) => {
+    const p = (input.value - input.min) / (input.max - input.min) * 100;
+    input.style.setProperty('--p', p + '%');
+  };
+
+  function sectionLabel(pos) {
+    const B = route.bridges;
+    const high = st.height >= 5.5 || st.hop;
+    for (const b of B) if (pos >= b.a - 2 && pos <= b.b + 2) return (high ? 'Over de ' : 'Onder de ') + b.name;
+    const fwd = st.dir > 0;
+    const ahead = fwd ? B.find((b) => b.mid > pos) : [...B].reverse().find((b) => b.mid < pos);
+    const behind = fwd ? [...B].reverse().find((b) => b.mid < pos) : B.find((b) => b.mid > pos);
+    if (ahead && behind) return `Tussen ${behind.name} en ${ahead.name}`;
+    if (ahead) return (fwd ? 'Vanaf Tolsteeg, richting ' : 'Vanaf de Weerdsluis, richting ') + ahead.name;
+    if (behind) return `Voorbij de ${behind.name}` + (fwd ? ', bij de Weerdsluis' : ', bij Tolsteeg');
+    return '';
+  }
+
+  /* ---------- overzichtskaartje ---------- */
+  let miniMe = null, miniUnitsPerPx = 1, miniBox = null;
+  function drawMini() {
+    const P = route.pts, svg = el.mini;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x, y] of P) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    const pad = 40;
+    miniBox = { x: minX - pad, y: -maxY - pad, w: (maxX - minX) + 2 * pad, h: (maxY - minY) + 2 * pad };
+    svg.setAttribute('viewBox', `${miniBox.x} ${miniBox.y} ${miniBox.w} ${miniBox.h}`);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    const r = svg.getBoundingClientRect();
+    miniUnitsPerPx = Math.max(miniBox.w / Math.max(1, r.width), miniBox.h / Math.max(1, r.height));
+    const u = miniUnitsPerPx;
+    const d = P.filter((_, i) => i % 4 === 0 || i === P.length - 1)
+      .map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + (-p[1]).toFixed(1)).join(' ');
+    let html = `<path d="${d}" fill="none" stroke="#6db3ae" stroke-opacity=".28" stroke-width="${7 * u}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    html += `<path d="${d}" fill="none" stroke="#6db3ae" stroke-width="${1.6 * u}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    for (const b of route.bridges) {
+      const p = route.sample(b.mid), h = p.heading * Math.PI / 180;
+      const nx = Math.cos(h) * 4.5 * u, ny = Math.sin(h) * 4.5 * u; // dwars op de gracht
+      html += `<line x1="${p.x - nx}" y1="${-p.y - ny}" x2="${p.x + nx}" y2="${-p.y + ny}" stroke="#f2eee7" stroke-opacity=".75" stroke-width="${1.4 * u}" stroke-linecap="round"><title>${b.name}</title></line>`;
+    }
+    html += `<g id="miniMe"><circle r="${7 * u}" fill="#d8774a" fill-opacity=".25"/><path d="M0 ${-6.5 * u} L${4.2 * u} ${4.5 * u} L0 ${2.2 * u} L${-4.2 * u} ${4.5 * u} Z" fill="#d8774a" stroke="#1b0f09" stroke-width="${0.6 * u}"/></g>`;
+    svg.innerHTML = html;
+    miniMe = svg.querySelector('#miniMe');
+  }
+  function updateMini(c) {
+    if (!miniMe) return;
+    const p = route.sample(c.pos);
+    miniMe.setAttribute('transform', `translate(${p.x.toFixed(1)} ${(-p.y).toFixed(1)}) rotate(${c.heading.toFixed(1)})`);
+  }
+  el.mini.addEventListener('click', (e) => {
+    const pt = el.mini.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const m = el.mini.getScreenCTM(); if (!m) return;
+    const w = pt.matrixTransform(m.inverse());
+    const pos = route.nearestXY(w.x, -w.y).s;
+    seekTo(st.dir > 0 ? pos : route.L - pos);
+  });
+  window.addEventListener('resize', () => { drawMini(); needsApply = true; });
+
+  /* ---------- camera ---------- */
+  function applyCamera() {
+    const c = cameraAt(route, s, st);
+    updateMini(c);
+    if (!map) return c;
+    try {
+      map.heading = c.heading;
+      map.tilt = c.tilt;
+      map.range = c.range;
+      map.center = c.center;
+      if (hasCameraPosition) map.cameraPosition = c.camera;
+    } catch (err) { console.warn(err); }
+    return c;
+  }
+
+  function updateUi(c, force) {
+    const now = performance.now();
+    if (!force && now - lastUi < 90) return;
+    lastUi = now;
+    const label = sectionLabel(c.pos);
+    el.section.textContent = label;
+    el.where.textContent = label;
+    const remaining = (route.L - s) / st.speed;
+    el.dist.textContent = `${nf(s / 1000, 2)} / ${nf(route.L / 1000, 2)} km · nog ${fmtTime(remaining)}`;
+    if (document.activeElement !== el.scrub) { el.scrub.value = s; }
+    fill(el.scrub);
+  }
+
+  function setPlaying(on) {
+    if (on && !mapReady) return;
+    if (on && ended) { s = 0; ended = false; }
+    playing = on;
+    el.play.classList.toggle('is-playing', on);
+    el.play.setAttribute('aria-label', on ? 'Pauzeren' : 'Afspelen');
+    if (on) { calibrating = false; el.hint.hidden = true; needsApply = true; }
+    lastT = performance.now();
+  }
+  function seekTo(v) {
+    s = Math.min(route.L, Math.max(0, v));
+    ended = s >= route.L;
+    needsApply = true;
+  }
+
+  function frame(t) {
+    const dt = Math.min(0.1, Math.max(0, (t - lastT) / 1000));
+    lastT = t;
+    if (playing) {
+      s += st.speed * dt;
+      if (s >= route.L) { s = route.L; ended = true; setPlaying(false); }
+      needsApply = true;
+    }
+    if (needsApply) {
+      needsApply = false;
+      const c = applyCamera();
+      updateUi(c, !playing);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- bediening ---------- */
+  el.play.addEventListener('click', () => setPlaying(!playing));
+  el.restart.addEventListener('click', () => { seekTo(0); ended = false; if (mapReady) setPlaying(true); });
+  el.scrub.max = route.L;
+  el.scrub.addEventListener('input', () => { seekTo(+el.scrub.value); fill(el.scrub); });
+
+  el.settingsBtn.addEventListener('click', () => {
+    const open = el.settings.hidden;
+    el.settings.hidden = !open;
+    el.settingsBtn.setAttribute('aria-expanded', String(open));
+  });
+
+  function syncControls() {
+    el.speed.value = st.speed; el.height.value = st.height; el.pitch.value = st.pitch; el.fov.value = st.fov;
+    el.hop.checked = st.hop;
+    el.speedOut.textContent = `${nf(st.speed, 1)} m/s · ${nf(st.speed * 3.6, 0)} km/u`;
+    el.heightOut.textContent = `${nf(st.height, 1)} m`;
+    el.pitchOut.textContent = `${nf(st.pitch, 1)}°`;
+    el.fovOut.textContent = `${st.fov}°`;
+    el.waterOut.textContent = `${nf(st.water, 2)} m`;
+    for (const b of document.querySelectorAll('[data-dir]')) b.setAttribute('aria-pressed', String(+b.dataset.dir === st.dir));
+    for (const r of [el.speed, el.height, el.pitch, el.fov]) fill(r);
+    if (map) { try { map.fov = st.fov; } catch { /* oudere versie */ } }
+  }
+  const onSetting = (key, input) => input.addEventListener('input', () => {
+    st[key] = +input.value; syncControls(); saveSettings(); needsApply = true;
+  });
+  onSetting('speed', el.speed); onSetting('height', el.height); onSetting('pitch', el.pitch); onSetting('fov', el.fov);
+  el.hop.addEventListener('change', () => { st.hop = el.hop.checked; syncControls(); saveSettings(); needsApply = true; });
+  el.lowest.addEventListener('click', () => { st.height = +el.height.min; syncControls(); saveSettings(); needsApply = true; });
+  for (const b of document.querySelectorAll('[data-dir]')) {
+    b.addEventListener('click', () => {
+      const d = +b.dataset.dir;
+      if (d === st.dir) return;
+      st.dir = d; s = route.L - s; ended = false;
+      syncControls(); saveSettings(); needsApply = true;
+    });
+  }
+  el.calib.addEventListener('click', () => {
+    if (!map) return;
+    setPlaying(false);
+    calibrating = true;
+    showHint('Klik nu op het wateroppervlak in beeld om het waterpeil te meten.');
+  });
+  el.waterReset.addEventListener('click', () => { st.water = DEFAULTS.water; syncControls(); saveSettings(); needsApply = true; });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest && e.target.closest('input[type=text], form')) return;
+    if (e.code === 'Space') {
+      // Knoppen en schakelaars reageren zelf al op de spatiebalk.
+      if (e.target.tagName === 'BUTTON' || e.target.type === 'checkbox') return;
+      e.preventDefault(); setPlaying(!playing);
+    }
+    else if (e.key === 'r' || e.key === 'R') { seekTo(0); ended = false; if (mapReady) setPlaying(true); }
+    else if (e.key === 'ArrowRight' && e.target.type !== 'range') { seekTo(s + 25); }
+    else if (e.key === 'ArrowLeft' && e.target.type !== 'range') { seekTo(s - 25); }
+    else if (e.key === 'Escape') { el.settings.hidden = true; el.settingsBtn.setAttribute('aria-expanded', 'false'); calibrating = false; el.hint.hidden = true; }
+  });
+
+  /* ---------- meldingen ---------- */
+  function showStatus(text, { spinner = true, error = false } = {}) {
+    el.statusText.textContent = text;
+    el.statusText.classList.toggle('error', error);
+    el.status.querySelector('.spinner').hidden = !spinner;
+    el.status.hidden = false;
+  }
+  const hideStatus = () => { el.status.hidden = true; };
+  let hintTimer = 0;
+  function showHint(text, ms = 0) {
+    el.hint.textContent = text; el.hint.hidden = false;
+    clearTimeout(hintTimer);
+    if (ms) hintTimer = setTimeout(() => { el.hint.hidden = true; }, ms);
+  }
+  function showError(text) {
+    setPlaying(false);
+    showStatus(text, { spinner: false, error: true });
+    el.status.style.cursor = 'pointer';
+    el.status.title = 'Klik om een andere API-sleutel in te voeren';
+    el.status.onclick = askKey;
+  }
+
+  /* ---------- API-sleutel ---------- */
+  function currentKey() {
+    const fromUrl = new URLSearchParams(location.search).get('key');
+    return fromUrl || API_KEY || store.sget('key') || store.get('key') || '';
+  }
+  function askKey() {
+    el.keyInput.value = '';
+    el.keyDlg.hidden = false;
+    setTimeout(() => el.keyInput.focus(), 50);
+  }
+  el.changeKey.addEventListener('click', () => { store.del('key'); store.sdel('key'); askKey(); });
+  el.keyForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const key = el.keyInput.value.trim();
+    if (!key) return;
+    store.del('key'); store.sdel('key');
+    if (el.remember.checked) store.set('key', key); else store.sset('key', key);
+    if (window.google && window.google.maps) {
+      // De Maps-bibliotheek laadt maar één keer per pagina: herladen met de nieuwe sleutel.
+      const u = new URL(location.href); u.searchParams.delete('key');
+      location.replace(u.toString());
+      return;
+    }
+    el.keyDlg.hidden = true;
+    start(key);
+  });
+
+  /* ---------- Google Maps 3D ---------- */
+  function loadMaps(key) {
+    return new Promise((resolve, reject) => {
+      window.__oudegrachtMapsReady = () => resolve();
+      window.gm_authFailure = () => showError('Google weigert de API-sleutel. Controleer of de Maps JavaScript API aan staat, facturering actief is en of de sleutel voor deze pagina is toegestaan. Klik hier om een andere sleutel in te voeren.');
+      const params = new URLSearchParams({
+        key, v: 'weekly', loading: 'async', language: 'nl', region: 'NL',
+        callback: '__oudegrachtMapsReady'
+      });
+      const sc = document.createElement('script');
+      sc.src = 'https://maps.googleapis.com/maps/api/js?' + params.toString();
+      sc.async = true;
+      sc.onerror = () => reject(new Error('Het Google Maps-script kon niet worden geladen. Is er internet?'));
+      document.head.appendChild(sc);
+    });
+  }
+
+  async function start(key) {
+    showStatus('Google Maps 3D laden…');
+    try {
+      await loadMaps(key);
+      const lib = await google.maps.importLibrary('maps3d');
+      const { Map3DElement, MapMode, GestureHandling } = lib;
+      const c = cameraAt(route, s, st);
+      map = new Map3DElement({
+        center: c.center,
+        heading: c.heading,
+        tilt: c.tilt,
+        range: c.range,
+        roll: 0,
+        fov: st.fov,
+        minAltitude: 0,
+        minTilt: 0,
+        maxTilt: 90,
+        mode: (MapMode && MapMode.SATELLITE) || 'SATELLITE',
+        gestureHandling: (GestureHandling && GestureHandling.GREEDY) || 'GREEDY',
+        defaultUIHidden: true,
+        description: '3D-vaart over de Oudegracht in Utrecht'
+      });
+      hasCameraPosition = 'cameraPosition' in map;
+      if (hasCameraPosition) { try { map.cameraPosition = c.camera; } catch { hasCameraPosition = false; } }
+      $('map').appendChild(map);
+
+      map.addEventListener('gmp-error', () => showError('De 3D-kaart kon niet starten. Staat facturering aan voor deze sleutel? Klik hier om een andere sleutel in te voeren.'));
+      map.addEventListener('gmp-click', (e) => {
+        if (!calibrating) return;
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        const alt = e.position && e.position.altitude;
+        if (typeof alt === 'number' && isFinite(alt)) {
+          st.water = Math.round(alt * 100) / 100;
+          calibrating = false;
+          syncControls(); saveSettings(); needsApply = true;
+          showHint(`Waterpeil gemeten: ${nf(st.water, 2)} m. De camera vaart nu ${nf(st.height, 1)} m daarboven.`, 4500);
+        } else {
+          showHint('Geen hoogte gevonden op dat punt. Klik nog eens op het water.');
+        }
+      });
+
+      let started = false;
+      const go = () => {
+        if (started) return;
+        started = true; mapReady = true;
+        hideStatus();
+        needsApply = true;
+        setPlaying(true);
+      };
+      map.addEventListener('gmp-steadychange', (e) => { if (e.isSteady) go(); });
+      setTimeout(go, 9000);
+      showStatus('3D-tegels van de binnenstad laden…');
+
+      setInterval(() => {
+        if (!map) return;
+        const cp = hasCameraPosition ? map.cameraPosition : null;
+        const want = cameraAt(route, s, st).camera.altitude;
+        el.camAlt.textContent = cp && typeof cp.altitude === 'number'
+          ? `Camera nu op ${nf(cp.altitude, 1)} m (gevraagd ${nf(want, 1)} m)`
+          : `Camera gevraagd op ${nf(want, 1)} m`;
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showError((err && err.message) || 'Er ging iets mis bij het laden van de kaart.');
+    }
+  }
+
+  /* ---------- start ---------- */
+  syncControls();
+  drawMini();
+  needsApply = true;
+  requestAnimationFrame((t) => { lastT = t; frame(t); });
+
+  const key = currentKey();
+  if (key) start(key); else askKey();
+})();
+</script>
+</body>
+</html>
