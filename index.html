@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Oudegracht vanaf het water</title>
-<meta name="description" content="3D-vaart over de Oudegracht in Utrecht met Google Maps 3D: als een drone boven het water, camera vooruit, door alle bochten.">
+<meta name="description" content="3D-vluchten over het water met Google Maps 3D: Utrecht, Amsterdam, Venetië en New York. Camera vooruit, parallel aan het water, door alle bochten.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -28,7 +28,7 @@
     font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  button, input { font: inherit; color: inherit; }
+  button, input, select { font: inherit; color: inherit; }
   button { cursor: pointer; }
 
   #map { position: fixed; inset: 0; }
@@ -42,18 +42,37 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
   }
 
-  /* ---------- titel ---------- */
+  /* ---------- titel + routekiezer ---------- */
   .brand {
     position: fixed; top: 16px; left: 16px;
     padding: 12px 16px 13px; border-radius: 14px;
     max-width: calc(100% - 140px);
-    pointer-events: none;
   }
   .eyebrow { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
-  .brand h1 {
-    margin: 2px 0 0; font-family: Fraunces, Georgia, serif; font-style: italic; font-weight: 500;
-    font-size: 27px; line-height: 1.1; letter-spacing: -.01em;
+  .brand .eyebrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .picker {
+    position: relative; display: inline-flex; align-items: center; gap: 8px;
+    margin: 2px 0 0; padding: 1px 8px 2px 0; border-radius: 8px; cursor: pointer; max-width: 100%;
   }
+  .picker h1 {
+    margin: 0; font-family: Fraunces, Georgia, serif; font-style: italic; font-weight: 500;
+    font-size: 27px; line-height: 1.1; letter-spacing: -.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .picker .chev {
+    width: 26px; height: 26px; flex: none; border-radius: 50%;
+    display: grid; place-items: center; background: rgba(255, 255, 255, .08);
+    transition: background .15s ease;
+  }
+  .picker .chev svg { width: 14px; height: 14px; }
+  .picker:hover .chev { background: rgba(216, 119, 74, .35); }
+  .picker select {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; font-size: 16px; border: 0;
+    -webkit-appearance: none; appearance: none;
+  }
+  .picker select option { color: #111; }
+  .picker:focus-within { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
   .brand p { margin: 5px 0 0; font-size: 13px; color: var(--accent-soft); min-height: 1.25em; }
 
   /* ---------- overzichtskaartje ---------- */
@@ -135,6 +154,7 @@
     background: var(--panel-solid);
   }
   .settings h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .settings h2 span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--accent-soft); }
   .row { padding: 7px 0; }
   .row + .row { border-top: 1px solid rgba(255, 255, 255, .06); }
   .row label, .row .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; margin-bottom: 3px; }
@@ -167,7 +187,6 @@
     border-radius: 10px; padding: 7px 11px; font-size: 12.5px;
   }
   .btn:hover { background: rgba(255, 255, 255, .12); }
-  .btn.accent { background: var(--accent); border-color: transparent; color: #1b0f09; font-weight: 600; }
   .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 7px; }
   .linkish { border: 0; background: none; padding: 0; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
 
@@ -213,8 +232,9 @@
 
   @media (max-width: 640px) {
     .brand { top: 10px; left: 10px; padding: 9px 12px 10px; }
-    .brand h1 { font-size: 21px; }
-    .mini { top: 10px; right: 10px; width: 64px; height: 196px; padding: 6px; }
+    .picker h1 { font-size: 21px; }
+    .picker .chev { width: 22px; height: 22px; }
+    .mini { top: 10px; right: 10px; padding: 6px; }
     .bar { width: calc(100% - 20px); gap: 8px; padding: 8px 10px; bottom: calc(34px + env(safe-area-inset-bottom)); }
     .play { width: 44px; height: 44px; }
     #restart { display: none; }
@@ -226,13 +246,19 @@
 
 <div id="map" aria-label="3D-kaart"></div>
 
-<div class="brand glass">
-  <div class="eyebrow">Utrecht · vanaf het water</div>
-  <h1>Oudegracht</h1>
+<div id="brand" class="brand glass">
+  <div class="eyebrow" id="eyebrow">Utrecht · vanaf het water</div>
+  <label class="picker" title="Kies een andere route">
+    <h1 id="routeTitle">Oudegracht</h1>
+    <span class="chev" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </span>
+    <select id="routeSelect" aria-label="Kies een route"></select>
+  </label>
   <p id="where"></p>
 </div>
 
-<div class="mini glass" title="Klik om naar een punt op de route te springen">
+<div id="miniPanel" class="mini glass" title="Klik om naar een punt op de route te springen">
   <svg id="mini" aria-label="Overzicht van de route"></svg>
 </div>
 
@@ -257,7 +283,7 @@
 </div>
 
 <div id="settings" class="settings glass" hidden>
-  <h2>Instellingen</h2>
+  <h2>Instellingen <span id="settingsRoute"></span></h2>
 
   <div class="row">
     <label for="speed">Snelheid <output id="speedOut"></output></label>
@@ -266,14 +292,14 @@
 
   <div class="row">
     <label for="height">Hoogte boven het water <output id="heightOut"></output></label>
-    <input id="height" type="range" min="0.2" max="40" step="0.1">
+    <input id="height" type="range" min="0.2" max="60" step="0.1">
     <div class="btn-row"><button id="lowest" class="btn">Zo laag mogelijk</button></div>
   </div>
 
   <div class="row toggle">
     <div>
       <label for="hop">Over bruggen heen</label>
-      <small>In het 3D-model zijn de bruggen massief: onder een brug door zie je even het binnenste van het model. Zet dit aan om er soepel overheen te wippen.</small>
+      <small id="hopHelp">In het 3D-model zijn de bruggen massief: onder een brug door zie je even het binnenste van het model. Zet dit aan om er soepel overheen te wippen.</small>
     </div>
     <span class="switch"><input id="hop" type="checkbox"><span></span></span>
   </div>
@@ -281,8 +307,8 @@
   <div class="row">
     <span class="lbl">Vaarrichting</span>
     <div class="segmented" role="group" aria-label="Vaarrichting">
-      <button data-dir="1" aria-pressed="true">Naar de Weerdsluis</button>
-      <button data-dir="-1" aria-pressed="false">Naar Tolsteeg</button>
+      <button data-dir="1" aria-pressed="true"></button>
+      <button data-dir="-1" aria-pressed="false"></button>
     </div>
   </div>
 
@@ -307,6 +333,8 @@
   </div>
 
   <div class="row">
+    <button id="resetAll" class="linkish">Standaardinstellingen voor deze route</button>
+    &nbsp;·&nbsp;
     <button id="changeKey" class="linkish">Andere API-sleutel gebruiken</button>
   </div>
 </div>
@@ -316,12 +344,12 @@
 
 <div id="keyDlg" class="modal" hidden>
   <form id="keyForm" class="card" autocomplete="off">
-    <div class="eyebrow">Oudegracht · 3D</div>
+    <div class="eyebrow">Vluchten over het water · 3D</div>
     <h2>Google Maps-sleutel</h2>
     <p>De fotorealistische 3D-kaart komt van Google Maps en heeft jouw eigen API-sleutel nodig, met de <b>Maps JavaScript API</b> ingeschakeld in Google Cloud.</p>
     <input id="keyInput" type="text" spellcheck="false" placeholder="AIza…" aria-label="Google Maps API-sleutel" required>
     <label class="check"><input id="remember" type="checkbox" checked> Onthoud op dit apparaat</label>
-    <button type="submit" class="primary">Start de vaart</button>
+    <button type="submit" class="primary">Start de vlucht</button>
     <p class="fine">Je kunt de sleutel ook vast in dit bestand zetten (<code>API_KEY</code> bovenin het script) of meegeven als <code>?key=…</code> achter de bestandsnaam.</p>
   </form>
 </div>
@@ -334,9 +362,10 @@
 const API_KEY = 'AIzaSyD3xQG3A2tr7NCEZOYDeZ_CjwHs8YHwBZY';
 
 // === ROUTE DATA ===
-// Middellijn van de Oudegracht (OpenStreetMap, © OpenStreetMap-bijdragers, ODbL),
-// van de noordkant van de tunnel onder de Bijlhouwersbrug (Tolsteeg) tot voorbij de Weerdbrug.
-const RAW_PATH = [
+// Waterlijnen en bruggen: © OpenStreetMap-bijdragers (ODbL).
+
+// Utrecht – middellijn van de Oudegracht, van de tunnel onder de Bijlhouwersbrug (Tolsteeg) tot voorbij de Weerdbrug.
+const UTRECHT_PATH = [
   [52.081831,5.123457],[52.082157,5.122907],[52.082322,5.122777],[52.082521,5.122712],[52.082674,5.122728],
   [52.082961,5.122772],[52.083331,5.122846],[52.083804,5.123026],[52.083844,5.123026],[52.084078,5.122984],
   [52.084495,5.122906],[52.085091,5.122632],[52.08573,5.122386],[52.086074,5.122264],[52.086126,5.122246],
@@ -353,37 +382,108 @@ const RAW_PATH = [
   [52.094304,5.116597],[52.094888,5.116612],[52.095506,5.116494],[52.095866,5.116299],[52.096069,5.11617],
   [52.096178,5.116109],[52.096291,5.116043],[52.096469,5.115863],[52.0967985,5.1154905]
 ];
+const UTRECHT_BRIDGES = [
+  { name: 'de Vollersbrug',   pts: [[52.083874,5.122913],[52.083873,5.12316],[52.083811,5.123158],[52.083814,5.122911]] },
+  { name: 'de Geertebrug',    pts: [[52.085064,5.122765],[52.08513,5.122731],[52.085103,5.122518],[52.085035,5.122556]] },
+  { name: 'de Smeebrug',      pts: [[52.08637,5.122002],[52.086258,5.12203],[52.086299,5.122314],[52.086419,5.122274]] },
+  { name: 'de Weesbrug',      pts: [[52.087298,5.12175],[52.087236,5.12177],[52.087263,5.121992],[52.087325,5.121974]] },
+  { name: 'de Hamburgerbrug', pts: [[52.088444,5.121531],[52.088378,5.121553],[52.088355,5.121368],[52.088421,5.121346]] },
+  { name: 'de Gaardbrug',     pts: [[52.089249,5.121259],[52.089213,5.12105],[52.089148,5.121078],[52.089184,5.121287]] },
+  { name: 'de Maartensbrug',  pts: [[52.09046,5.12045],[52.090431,5.120275],[52.090323,5.120298],[52.090337,5.120502]] },
+  { name: 'de brug bij de Zoutmarkt', pts: [[52.09099,5.120113],[52.090758,5.120182],[52.090774,5.120317],[52.091005,5.12025]] },
+  { name: 'de Stadhuisbrug',  pts: [[52.091415,5.119762],[52.091629,5.119392],[52.091647,5.119279],[52.091733,5.11928],
+                                    [52.091687,5.119448],[52.091491,5.119786],[52.091431,5.119878],[52.091391,5.119799],
+                                    [52.091544,5.119265],[52.091335,5.119633],[52.091499,5.119977],[52.09178,5.119319]] },
+  { name: 'de Bezembrug',     pts: [[52.091698,5.11845],[52.09162,5.118466],[52.091619,5.118385],[52.091696,5.118372]] },
+  { name: 'de Bakkerbrug',    pts: [[52.091738,5.117066],[52.09168,5.117228],[52.091797,5.117339],[52.091859,5.117177]] },
+  { name: 'de Jansbrug',      pts: [[52.092461,5.116836],[52.092444,5.116953],[52.092394,5.11693],[52.09241,5.116813]] },
+  { name: 'de Viebrug',       pts: [[52.093483,5.116587],[52.093545,5.11687],[52.093341,5.116972],[52.09329,5.116737]] },
+  { name: 'de Jacobibrug',    pts: [[52.094919,5.1165],[52.094931,5.116704],[52.094865,5.116714],[52.094853,5.11651]] },
+  { name: 'de Zandbrug',      pts: [[52.0962,5.116023],[52.096131,5.11607],[52.096152,5.116178],[52.096227,5.116145]] },
+  { name: 'de Weerdbrug',     pts: [[52.096442,5.116169],[52.096431,5.116125],[52.09656,5.116042],[52.096583,5.116135]] }
+];
 
-// Brugdekken boven de Oudegracht (omtrekken uit OpenStreetMap).
-const BRIDGES = [
-  { name: 'Vollersbrug',   pts: [[52.083874,5.122913],[52.083873,5.12316],[52.083811,5.123158],[52.083814,5.122911]] },
-  { name: 'Geertebrug',    pts: [[52.085064,5.122765],[52.08513,5.122731],[52.085103,5.122518],[52.085035,5.122556]] },
-  { name: 'Smeebrug',      pts: [[52.08637,5.122002],[52.086258,5.12203],[52.086299,5.122314],[52.086419,5.122274]] },
-  { name: 'Weesbrug',      pts: [[52.087298,5.12175],[52.087236,5.12177],[52.087263,5.121992],[52.087325,5.121974]] },
-  { name: 'Hamburgerbrug', pts: [[52.088444,5.121531],[52.088378,5.121553],[52.088355,5.121368],[52.088421,5.121346]] },
-  { name: 'Gaardbrug',     pts: [[52.089249,5.121259],[52.089213,5.12105],[52.089148,5.121078],[52.089184,5.121287]] },
-  { name: 'Maartensbrug',  pts: [[52.09046,5.12045],[52.090431,5.120275],[52.090323,5.120298],[52.090337,5.120502]] },
-  { name: 'Zoutmarkt',     pts: [[52.09099,5.120113],[52.090758,5.120182],[52.090774,5.120317],[52.091005,5.12025]] },
-  { name: 'Stadhuisbrug',  pts: [[52.091415,5.119762],[52.091629,5.119392],[52.091647,5.119279],[52.091733,5.11928],
-                                 [52.091687,5.119448],[52.091491,5.119786],[52.091431,5.119878],[52.091391,5.119799],
-                                 [52.091544,5.119265],[52.091335,5.119633],[52.091499,5.119977],[52.09178,5.119319]] },
-  { name: 'Bezembrug',     pts: [[52.091698,5.11845],[52.09162,5.118466],[52.091619,5.118385],[52.091696,5.118372]] },
-  { name: 'Bakkerbrug',    pts: [[52.091738,5.117066],[52.09168,5.117228],[52.091797,5.117339],[52.091859,5.117177]] },
-  { name: 'Jansbrug',      pts: [[52.092461,5.116836],[52.092444,5.116953],[52.092394,5.11693],[52.09241,5.116813]] },
-  { name: 'Viebrug',       pts: [[52.093483,5.116587],[52.093545,5.11687],[52.093341,5.116972],[52.09329,5.116737]] },
-  { name: 'Jacobibrug',    pts: [[52.094919,5.1165],[52.094931,5.116704],[52.094865,5.116714],[52.094853,5.11651]] },
-  { name: 'Zandbrug',      pts: [[52.0962,5.116023],[52.096131,5.11607],[52.096152,5.116178],[52.096227,5.116145]] },
-  { name: 'Weerdbrug',     pts: [[52.096442,5.116169],[52.096431,5.116125],[52.09656,5.116042],[52.096583,5.116135]] }
+// Amsterdam – middellijn van de Herengracht, van de Brouwersgracht tot de Amstel (met de Gouden Bocht).
+const AMSTERDAM_PATH = [[52.379236,4.892016],[52.376901,4.889888],[52.376874,4.88986],[52.376778,4.889773],[52.374881,4.888044],[52.374802,4.887972],[52.374726,4.887902],[52.374007,4.887246],[52.373522,4.887207],[52.373277,4.88718],[52.372306,4.887093],[52.372226,4.887086],[52.370312,4.886909],[52.370227,4.886899],[52.368826,4.886765],[52.36874,4.88676],[52.368085,4.886719],[52.367765,4.886705],[52.367616,4.886783],[52.366852,4.888129],[52.366684,4.888421],[52.365485,4.890529],[52.365199,4.892614],[52.365145,4.893008],[52.364759,4.895877],[52.36478,4.89598],[52.364812,4.896133],[52.365095,4.897599],[52.365204,4.898175],[52.365628,4.900428],[52.365644,4.90051],[52.365656,4.900574],[52.36578,4.901207]];
+const AMSTERDAM_BRIDGES = [
+  { name: 'de Van Mierlobrug', pts: [[52.376783,4.889964],[52.376883,4.889691]] },
+  { name: 'de Anton Jolingbrug', pts: [[52.374806,4.888148],[52.374889,4.887853]] },
+  { name: 'de brug bij de Raadhuisstraat', pts: [[52.373349,4.887074],[52.37333,4.887301],[52.373488,4.887319],[52.373515,4.887094],[52.373443,4.887315],[52.373466,4.887088],[52.37339,4.887308],[52.373413,4.887081],[52.373662,4.887036],[52.373639,4.887374]] },
+  { name: 'brug 24', pts: [[52.372259,4.887242],[52.372274,4.886939]] },
+  { name: 'de Rachel Ruyschbrug', pts: [[52.370264,4.887028],[52.370277,4.886751]] },
+  { name: 'de Vingboomsbrug', pts: [[52.368773,4.88693],[52.368785,4.886575]] },
+  { name: 'de brug bij de Leidsestraat', pts: [[52.366775,4.888476],[52.366708,4.888278],[52.366692,4.888241],[52.366679,4.888218],[52.366767,4.88807],[52.366849,4.888333],[52.366735,4.888126],[52.36682,4.888391]] },
+  { name: 'de brug bij de Vijzelstraat', pts: [[52.365071,4.892789],[52.365273,4.892857]] },
+  { name: 'de Kaassluis', pts: [[52.364694,4.896069],[52.364876,4.896057]] },
+  { name: 'de brug bij de Utrechtsestraat', pts: [[52.365153,4.897702],[52.365086,4.897727],[52.365104,4.897801],[52.365164,4.897778],[52.365114,4.897862],[52.365175,4.89784]] },
+  { name: 'de Hendrick Jacobsz Staetsbrug', pts: [[52.365542,4.900561],[52.365748,4.900457]] }
+];
+
+// Venetië – middellijn van het Canal Grande, van Piazzale Roma tot het bekken van San Marco.
+const VENICE_PATH = [[45.442127,12.315385],[45.442076,12.315645],[45.442005,12.315929],[45.441905,12.316218],[45.44172,12.316539],[45.441201,12.31733],[45.440985,12.317654],[45.440625,12.317925],[45.440347,12.318109],[45.440148,12.318257],[45.44,12.318368],[45.439915,12.318428],[45.439604,12.318649],[45.439359,12.318831],[45.439016,12.319081],[45.438878,12.31927],[45.438823,12.319524],[45.438832,12.319647],[45.438836,12.319768],[45.438893,12.31992],[45.439128,12.32036],[45.439426,12.32071],[45.43993,12.321196],[45.440118,12.321389],[45.440326,12.321595],[45.440544,12.32181],[45.440734,12.322077],[45.440809,12.322176],[45.440875,12.322279],[45.441074,12.322595],[45.44125,12.323014],[45.441337,12.323239],[45.441711,12.324229],[45.441997,12.325154],[45.442075,12.325499],[45.442146,12.325814],[45.442292,12.32643],[45.442361,12.326752],[45.442399,12.327405],[45.442389,12.328079],[45.442355,12.328576],[45.442323,12.329075],[45.442267,12.329403],[45.442158,12.329924],[45.442091,12.330241],[45.442025,12.330491],[45.441941,12.330741],[45.441788,12.331147],[45.441684,12.331413],[45.441591,12.331651],[45.441498,12.331837],[45.441414,12.332007],[45.441289,12.332225],[45.440936,12.332809],[45.440869,12.332935],[45.440581,12.333476],[45.44039,12.333951],[45.440326,12.334099],[45.440147,12.334514],[45.439984,12.334847],[45.439718,12.335366],[45.43936,12.335748],[45.439236,12.33588],[45.438959,12.336051],[45.438538,12.336195],[45.438376,12.336195],[45.438238,12.336123],[45.438136,12.33603],[45.437991,12.335862],[45.437969,12.335835],[45.437632,12.335415],[45.437433,12.335137],[45.437345,12.334977],[45.437207,12.334735],[45.436718,12.333602],[45.436574,12.333141],[45.436493,12.332881],[45.436412,12.332593],[45.436374,12.332458],[45.436043,12.331274],[45.43602,12.331194],[45.43599,12.331084],[45.43589,12.330714],[45.435782,12.330147],[45.435642,12.329661],[45.435619,12.329583],[45.43547,12.329216],[45.43535,12.328783],[45.435298,12.328639],[45.435147,12.32822],[45.435007,12.327886],[45.434939,12.327762],[45.43487,12.327652],[45.434623,12.327252],[45.434336,12.327127],[45.43411,12.327202],[45.433908,12.327249],[45.433644,12.327293],[45.433456,12.32736],[45.433203,12.327433],[45.433022,12.327478],[45.432702,12.327624],[45.432428,12.327687],[45.432376,12.327763],[45.432325,12.327839],[45.432128,12.328131],[45.431858,12.328515],[45.431754,12.328714],[45.431484,12.329417],[45.431444,12.329569],[45.43138,12.32981],[45.431289,12.330271],[45.431275,12.330424],[45.431247,12.330725],[45.431236,12.331133],[45.431237,12.332025],[45.431237,12.332098],[45.431249,12.332421],[45.431253,12.332525],[45.431269,12.332772],[45.431295,12.333279],[45.431327,12.333632],[45.431368,12.334075],[45.431437,12.334966],[45.431454,12.3352],[45.431545,12.336474],[45.431587,12.33707],[45.431581,12.337807],[45.431577,12.338326],[45.431507,12.339396],[45.431461,12.340135],[45.431428,12.34066]];
+const VENICE_BRIDGES = [
+  { name: 'de Calatravabrug', pts: [[45.439219,12.31981],[45.439098,12.319651],[45.438974,12.319499],[45.438804,12.319313],[45.438653,12.319158],[45.438603,12.319112],[45.43858,12.31909],[45.438496,12.319016],[45.438469,12.319066],[45.43854,12.31916],[45.438583,12.319215],[45.438608,12.319246],[45.438747,12.319414],[45.438921,12.319605],[45.439053,12.319735],[45.439192,12.31986],[45.439203,12.319835],[45.439219,12.31981]] },
+  { name: 'de Scalzibrug', pts: [[45.441354,12.322602],[45.441369,12.322636],[45.441377,12.322622],[45.441381,12.322605],[45.441378,12.322582],[45.441362,12.322545],[45.441344,12.322505],[45.441332,12.322489],[45.441316,12.322485],[45.441303,12.322491],[45.441319,12.322527],[45.441262,12.322575],[45.441161,12.32266],[45.44107,12.322738],[45.440992,12.322804],[45.440955,12.322835],[45.440937,12.322851],[45.440924,12.322819],[45.440913,12.322833],[45.440911,12.322852],[45.440912,12.322874],[45.440931,12.322915],[45.440949,12.322954],[45.440961,12.322966],[45.440977,12.322968],[45.44099,12.32296],[45.440974,12.322931],[45.440992,12.322915],[45.441024,12.322886],[45.441105,12.322816],[45.441286,12.32266],[45.441354,12.322602]] },
+  { name: 'de Rialtobrug', pts: [[45.438265,12.335766],[45.438128,12.335605],[45.438007,12.335815],[45.437963,12.33589],[45.43807,12.335951],[45.438114,12.336002],[45.43799,12.33627],[45.437829,12.336087]] },
+  { name: 'de Accademiabrug', pts: [[45.431297,12.328812],[45.431372,12.328742],[45.431445,12.328572],[45.431464,12.328588],[45.431483,12.328605],[45.431436,12.328713],[45.431455,12.328729],[45.431496,12.328761],[45.431896,12.329079],[45.432023,12.329179],[45.432011,12.329208],[45.431999,12.329239],[45.431872,12.329139],[45.431456,12.328809],[45.431427,12.328786],[45.431412,12.328774],[45.43134,12.328846],[45.431317,12.328828],[45.431297,12.328812]] }
+];
+
+// New York – midden van de East River (even ver van Manhattan als van Brooklyn), van Lower Manhattan tot Williamsburg.
+const NYC_PATH = [[40.701121,-74.003767],[40.70128,-74.003553],[40.701477,-74.003252],[40.701678,-74.002882],[40.701863,-74.00247],[40.702037,-74.002037],[40.702212,-74.001606],[40.702401,-74.001191],[40.70261,-74.0008],[40.702836,-74.00043],[40.703073,-74.000073],[40.70332,-73.999728],[40.703575,-73.999392],[40.703839,-73.999067],[40.704113,-73.998754],[40.7044,-73.998457],[40.704702,-73.998175],[40.705015,-73.997899],[40.705336,-73.997614],[40.705652,-73.997305],[40.705944,-73.996962],[40.70619,-73.996582],[40.706384,-73.996171],[40.706533,-73.995737],[40.70665,-73.995288],[40.706746,-73.994831],[40.706827,-73.994366],[40.706895,-73.993896],[40.706952,-73.99342],[40.707002,-73.992941],[40.70705,-73.992462],[40.707103,-73.991983],[40.707159,-73.991507],[40.707208,-73.991032],[40.707227,-73.990555],[40.707207,-73.990076],[40.707167,-73.989595],[40.707135,-73.989116],[40.707131,-73.98864],[40.707155,-73.988167],[40.707202,-73.987696],[40.707261,-73.987227],[40.70732,-73.986758],[40.707373,-73.986287],[40.707419,-73.985817],[40.707462,-73.985346],[40.707505,-73.984875],[40.707548,-73.984404],[40.707595,-73.983933],[40.707646,-73.983463],[40.707699,-73.982993],[40.707748,-73.982523],[40.707792,-73.982053],[40.70783,-73.981583],[40.707869,-73.981113],[40.707915,-73.980644],[40.707977,-73.980176],[40.708051,-73.979709],[40.708121,-73.979236],[40.708174,-73.978754],[40.708227,-73.978272],[40.70832,-73.97781],[40.708479,-73.977383],[40.708695,-73.976986],[40.70894,-73.976604],[40.709191,-73.976225],[40.709441,-73.975846],[40.709689,-73.97547],[40.709934,-73.97511],[40.710168,-73.974793],[40.71037,-73.974535],[40.710545,-73.974321],[40.710728,-73.974099],[40.71095,-73.973829],[40.711209,-73.97352],[40.711492,-73.973211],[40.711794,-73.972934],[40.712111,-73.972704],[40.712443,-73.972519],[40.712784,-73.972369],[40.71313,-73.972242],[40.713475,-73.972123],[40.713817,-73.971998],[40.714158,-73.971862],[40.714499,-73.971717],[40.71484,-73.971568],[40.715182,-73.971419],[40.715525,-73.971273],[40.715869,-73.971131],[40.716213,-73.970992],[40.716558,-73.970856],[40.716904,-73.970724],[40.717251,-73.970596],[40.717597,-73.970465],[40.717942,-73.970325],[40.718283,-73.970173],[40.718623,-73.970012],[40.718964,-73.969849],[40.719306,-73.969687],[40.71965,-73.969526],[40.719996,-73.969368],[40.720344,-73.96922],[40.720696,-73.969082],[40.721048,-73.968949],[40.721394,-73.968809],[40.721722,-73.968663],[40.722007,-73.968524],[40.722219,-73.968414]];
+const NYC_BRIDGES = [
+  { name: 'de Brooklyn Bridge', pts: [[40.705758,-73.99621],[40.705836,-73.996308],[40.705914,-73.996406],[40.705992,-73.996504],[40.70607,-73.996602],[40.706148,-73.9967],[40.706225,-73.996798],[40.706303,-73.996897],[40.706381,-73.996995],[40.706459,-73.997093],[40.706325,-73.997389],[40.706248,-73.997291],[40.70617,-73.997193],[40.706092,-73.997095],[40.706014,-73.996997],[40.705936,-73.996899],[40.705858,-73.9968],[40.70578,-73.996702],[40.705702,-73.996604],[40.705625,-73.996506],[40.705586,-73.996457]] },
+  { name: 'de Manhattan Bridge', pts: [[40.707703,-73.991013],[40.707604,-73.990958],[40.707505,-73.990902],[40.707405,-73.990847],[40.707306,-73.990791],[40.707207,-73.990736],[40.707108,-73.99068],[40.707008,-73.990625],[40.706909,-73.990569],[40.70681,-73.990514],[40.706711,-73.990459]] },
+  { name: 'de Williamsburg Bridge', pts: [[40.713535,-73.9714],[40.713574,-73.971531],[40.713614,-73.971661],[40.713653,-73.971791],[40.713693,-73.971922],[40.713732,-73.972052],[40.713772,-73.972183],[40.713811,-73.972313],[40.713851,-73.972444],[40.71389,-73.972574],[40.713598,-73.972777],[40.713558,-73.972645],[40.713518,-73.972513],[40.713478,-73.972381],[40.713438,-73.972249],[40.713397,-73.972117],[40.713357,-73.971985],[40.713317,-73.971853],[40.713277,-73.971721],[40.713237,-73.971589],[40.713217,-73.971523]] }
+];
+
+/* Per route:
+   ends         – begin- en eindpunt (voor de vaarrichting en de teksten)
+   water        – waterpeil in m t.o.v. zeeniveau (aan te passen met "Meet op de kaart")
+   bridgeUnder  – vrije hoogte onder de bruggen; lager vliegen = er gewoon onderdoor
+   bridgeOver   – hoogte waarop "Over bruggen heen" de camera over een brug tilt
+   build        – instellingen voor het gladstrijken van de lijn                                  */
+const ROUTES = [
+  {
+    id: 'utrecht', city: 'Utrecht', name: 'Oudegracht', ends: ['Tolsteeg', 'de Weerdsluis'],
+    path: UTRECHT_PATH, bridges: UTRECHT_BRIDGES, water: 0.5,
+    bridgeUnder: 0, bridgeOver: 7.5, hopRamp: 16, maxHeight: 60,
+    build: { smoothSigma: 6, headingSigma: 9, trimStart: 10 },
+    defaults: { speed: 5, height: 25, pitch: 25, fov: 50, hop: false }
+  },
+  {
+    id: 'amsterdam', city: 'Amsterdam', name: 'Herengracht', ends: ['de Brouwersgracht', 'de Amstel'],
+    path: AMSTERDAM_PATH, bridges: AMSTERDAM_BRIDGES, water: -0.4,
+    bridgeUnder: 0, bridgeOver: 6.5, hopRamp: 16, maxHeight: 60,
+    build: { smoothSigma: 9, headingSigma: 12, trimStart: 15, trimEnd: 10 },
+    defaults: { speed: 6, height: 25, pitch: 25, fov: 50, hop: false }
+  },
+  {
+    id: 'venetie', city: 'Venetië', name: 'Canal Grande', ends: ['Piazzale Roma', 'San Marco'],
+    path: VENICE_PATH, bridges: VENICE_BRIDGES, water: 0,
+    bridgeUnder: 0, bridgeOver: 14, hopRamp: 30, maxHeight: 80,
+    build: { smoothSigma: 9, headingSigma: 16, trimStart: 25 },
+    defaults: { speed: 8, height: 25, pitch: 25, fov: 50, hop: false }
+  },
+  {
+    id: 'newyork', city: 'New York', name: 'East River', ends: ['Lower Manhattan', 'Williamsburg'],
+    path: NYC_PATH, bridges: NYC_BRIDGES, water: 0,
+    bridgeUnder: 36, bridgeOver: 65, hopRamp: 90, maxHeight: 150,
+    build: { step: 2, smoothSigma: 20, headingSigma: 40, bridgeDist: 70 },
+    defaults: { speed: 12, height: 30, pitch: 8, fov: 55, hop: true }
+  }
 ];
 
 // === ROUTE LOGIC ===
-/* Bouwt een vloeiende route: herbemonsteren per meter, gladstrijken zodat de knikken uit de
-   kaartdata verdwijnen, en per punt de vaarrichting (parallel aan de gracht) bepalen. */
+/* Bouwt een vloeiende route: herbemonsteren, gladstrijken zodat de knikken uit de
+   kaartdata verdwijnen, en per punt de vaarrichting (parallel aan het water) bepalen. */
 function buildRoute(raw, bridgeDefs, opt = {}) {
   const step = opt.step ?? 1;              // meter tussen routepunten
   const sigma = opt.smoothSigma ?? 6;      // gladstrijken van de lijn (m)
   const hSigma = opt.headingSigma ?? 9;    // gladstrijken van de kijkrichting (m)
-  const trim = opt.trimStart ?? 10;        // begin net voorbij de tunnelmond
+  const trimStart = opt.trimStart ?? 0;
+  const trimEnd = opt.trimEnd ?? 0;
+  const bridgeDist = opt.bridgeDist ?? 40; // brugpunten binnen deze afstand van de route tellen mee
+  const minBridge = opt.minBridge ?? 10;   // minimale lengte van een brug langs de route (m)
 
   const lat0 = raw.reduce((a, p) => a + p[0], 0) / raw.length;
   const lon0 = raw.reduce((a, p) => a + p[1], 0) / raw.length;
@@ -418,9 +518,11 @@ function buildRoute(raw, bridgeDefs, opt = {}) {
   // Gladstrijken met puntspiegeling aan de uiteinden, zodat begin en eind op hun plek blijven.
   const smoothPts = (pts, sig) => {
     const { r, w } = kernel(sig), n = pts.length, out = [];
-    const at = (i) => i < 0 ? [2 * pts[0][0] - pts[-i][0], 2 * pts[0][1] - pts[-i][1]]
-      : i >= n ? [2 * pts[n - 1][0] - pts[2 * (n - 1) - i][0], 2 * pts[n - 1][1] - pts[2 * (n - 1) - i][1]]
-      : pts[i];
+    const at = (i) => {
+      if (i < 0) { const q = pts[Math.min(n - 1, -i)]; return [2 * pts[0][0] - q[0], 2 * pts[0][1] - q[1]]; }
+      if (i >= n) { const q = pts[Math.max(0, 2 * (n - 1) - i)]; return [2 * pts[n - 1][0] - q[0], 2 * pts[n - 1][1] - q[1]]; }
+      return pts[i];
+    };
     for (let i = 0; i < n; i++) {
       let sx = 0, sy = 0, sw = 0;
       for (let k = -r; k <= r; k++) { const p = at(i + k), wk = w[k + r]; sx += p[0] * wk; sy += p[1] * wk; sw += wk; }
@@ -430,7 +532,8 @@ function buildRoute(raw, bridgeDefs, opt = {}) {
   };
   const smoothArr = (arr, sig) => {
     const { r, w } = kernel(sig), n = arr.length, out = [];
-    const at = (i) => i < 0 ? 2 * arr[0] - arr[-i] : i >= n ? 2 * arr[n - 1] - arr[2 * (n - 1) - i] : arr[i];
+    const at = (i) => i < 0 ? 2 * arr[0] - arr[Math.min(n - 1, -i)]
+      : i >= n ? 2 * arr[n - 1] - arr[Math.max(0, 2 * (n - 1) - i)] : arr[i];
     for (let i = 0; i < n; i++) {
       let s = 0, sw = 0;
       for (let k = -r; k <= r; k++) { s += at(i + k) * w[k + r]; sw += w[k + r]; }
@@ -442,11 +545,12 @@ function buildRoute(raw, bridgeDefs, opt = {}) {
   let pts = resample(raw.map(toXY));
   pts = smoothPts(pts, sigma / step);
   pts = resample(pts);
-  pts = pts.slice(Math.round(trim / step));
+  const cutA = Math.round(trimStart / step), cutB = Math.round(trimEnd / step);
+  pts = pts.slice(cutA, pts.length - cutB);
   const n = pts.length;
   const L = (n - 1) * step;
 
-  // Richting van de gracht (kompaskoers: noord = 0, oost = 90), daarna gladgestreken.
+  // Richting van het water (kompaskoers: noord = 0, oost = 90), daarna gladgestreken.
   const k = Math.max(1, Math.round(3 / step));
   let ang = pts.map((_, i) => {
     const a = pts[Math.max(0, i - k)], b = pts[Math.min(n - 1, i + k)];
@@ -480,9 +584,10 @@ function buildRoute(raw, bridgeDefs, opt = {}) {
   const project = (ll) => { const [x, y] = toXY(ll); return nearestXY(x, y); };
 
   const bridges = bridgeDefs.map((b) => {
-    const pr = b.pts.map(project).filter((q) => q.dist < 40);
+    const pr = b.pts.map(project).filter((q) => q.dist < bridgeDist);
     if (!pr.length) return null;
-    const a = Math.min(...pr.map((q) => q.s)), z = Math.max(...pr.map((q) => q.s));
+    let a = Math.min(...pr.map((q) => q.s)), z = Math.max(...pr.map((q) => q.s));
+    if (z - a < minBridge) { const m = (a + z) / 2; a = m - minBridge / 2; z = m + minBridge / 2; }
     return { name: b.name, a, b: z, mid: (a + z) / 2 };
   }).filter((b) => b && b.b > 2 && b.a < L - 2).sort((p, q) => p.mid - q.mid);
 
@@ -500,15 +605,20 @@ function hopFactor(s, bridges, margin = 2, ramp = 16) {
   return f;
 }
 
-const HOP_CLEAR = 7.5;   // m boven het water bij het passeren van een brug
+/* Extra hoogte boven een brug. Wie onder de vrije hoogte vliegt, gaat er gewoon onderdoor. */
+function bridgeLift(def, route, pos, st) {
+  if (!st.hop || st.height < def.bridgeUnder) return 0;
+  return Math.max(0, def.bridgeOver - st.height) * hopFactor(pos, route.bridges, 2, def.hopRamp);
+}
+
 const LOOK_RANGE = 30;   // m tussen camera en het punt waar de kaart om draait
 
 /* Camerastand voor afgelegde afstand s (in vaarrichting). */
-function cameraAt(route, s, st) {
+function cameraAt(def, route, s, st) {
   const pos = st.dir > 0 ? s : route.L - s;
   const p = route.sample(pos);
   const heading = (p.heading + (st.dir > 0 ? 0 : 180)) % 360;
-  const lift = st.hop ? Math.max(0, HOP_CLEAR - st.height) * hopFactor(pos, route.bridges) : 0;
+  const lift = bridgeLift(def, route, pos, st);
   const altitude = st.water + st.height + lift;
   const tilt = 90 - st.pitch;
   const r = Math.PI / 180;
@@ -525,8 +635,6 @@ function cameraAt(route, s, st) {
 (() => {
   'use strict';
 
-  const DEFAULTS = { speed: 5, height: 25, pitch: 25, fov: 50, hop: false, dir: 1, water: 0.5 };
-  const SETTINGS_KEY = 'settings-v2'; // nieuwe sleutel: eerder bewaarde instellingen overschrijven de nieuwe standaard niet
   const LS = 'oudegracht3d:';
   const store = {
     get(k) { try { return localStorage.getItem(LS + k); } catch { return null; } },
@@ -536,31 +644,48 @@ function cameraAt(route, s, st) {
     sset(k, v) { try { sessionStorage.setItem(LS + k, v); } catch { /* geen opslag */ } },
     sdel(k) { try { sessionStorage.removeItem(LS + k); } catch { /* geen opslag */ } }
   };
+  const parse = (s) => { try { return JSON.parse(s || 'null'); } catch { return null; } };
 
-  const st = { ...DEFAULTS };
-  try {
-    const saved = JSON.parse(store.get(SETTINGS_KEY) || '{}');
-    for (const k of Object.keys(DEFAULTS)) if (typeof saved[k] === typeof DEFAULTS[k]) st[k] = saved[k];
-    // Een eerder gemeten waterpeil uit de oude instellingen blijft bewaard.
-    const old = JSON.parse(store.get('settings') || '{}');
-    if (typeof saved.water !== 'number' && typeof old.water === 'number') st.water = old.water;
-  } catch { /* negeer */ }
-  const saveSettings = () => store.set(SETTINGS_KEY, JSON.stringify(st));
+  /* ---------- routes ---------- */
+  const built = Object.fromEntries(ROUTES.map((d) => [d.id, buildRoute(d.path, d.bridges, d.build)]));
+  const routeDefaults = (def) => ({ ...def.defaults, dir: 1, water: def.water });
+  // Instellingen per route; de eerdere (alleen-Utrecht) instellingen worden overgenomen.
+  const settingsKey = (def) => 'settings-v3:' + def.id;
+  function loadSettings(def) {
+    const st = routeDefaults(def);
+    let saved = parse(store.get(settingsKey(def)));
+    if (!saved && def.id === 'utrecht') {
+      saved = parse(store.get('settings-v2'));
+      const old = parse(store.get('settings'));
+      if (old && typeof old.water === 'number') saved = { water: old.water, ...(saved || {}) };
+    }
+    if (saved) for (const k of Object.keys(st)) if (typeof saved[k] === typeof st[k]) st[k] = saved[k];
+    st.height = Math.min(st.height, def.maxHeight);
+    return st;
+  }
 
-  const route = buildRoute(RAW_PATH, BRIDGES);
+  const fromUrl = new URLSearchParams(location.search).get('route');
+  let def = ROUTES.find((r) => r.id === fromUrl) || ROUTES[0];
+  let route = built[def.id];
+  let st = loadSettings(def);
+  const saveSettings = () => store.set(settingsKey(def), JSON.stringify(st));
+
   const $ = (id) => document.getElementById(id);
   const el = {
     play: $('play'), restart: $('restart'), scrub: $('scrub'), section: $('section'), dist: $('dist'),
-    where: $('where'), settingsBtn: $('settingsBtn'), settings: $('settings'),
+    where: $('where'), eyebrow: $('eyebrow'), routeTitle: $('routeTitle'), routeSelect: $('routeSelect'),
+    brand: $('brand'), miniPanel: $('miniPanel'), settingsRoute: $('settingsRoute'),
+    settingsBtn: $('settingsBtn'), settings: $('settings'),
     speed: $('speed'), speedOut: $('speedOut'), height: $('height'), heightOut: $('heightOut'),
     pitch: $('pitch'), pitchOut: $('pitchOut'), fov: $('fov'), fovOut: $('fovOut'), hop: $('hop'),
     lowest: $('lowest'), calib: $('calib'), waterReset: $('waterReset'), waterOut: $('waterOut'), camAlt: $('camAlt'),
-    changeKey: $('changeKey'), status: $('status'), statusText: $('statusText'), hint: $('hint'),
+    resetAll: $('resetAll'), changeKey: $('changeKey'), status: $('status'), statusText: $('statusText'), hint: $('hint'),
     keyDlg: $('keyDlg'), keyForm: $('keyForm'), keyInput: $('keyInput'), remember: $('remember'), mini: $('mini')
   };
 
   let map = null, hasCameraPosition = false;
   let s = 0, playing = false, ended = false, needsApply = true, calibrating = false, mapReady = false;
+  let flying = false, routeToken = 0, onFlightEnd = null;
   let lastT = performance.now(), lastUi = 0;
 
   /* ---------- opmaak ---------- */
@@ -573,37 +698,77 @@ function cameraAt(route, s, st) {
 
   function sectionLabel(pos) {
     const B = route.bridges;
-    const high = st.height >= 5.5 || st.hop;
-    for (const b of B) if (pos >= b.a - 2 && pos <= b.b + 2) return (high ? 'Over de ' : 'Onder de ') + b.name;
+    const over = st.height >= def.bridgeOver - 2 || (st.hop && st.height >= def.bridgeUnder);
+    for (const b of B) if (pos >= b.a - 2 && pos <= b.b + 2) return (over ? 'Over ' : 'Onder ') + b.name;
     const fwd = st.dir > 0;
+    const [from, to] = fwd ? def.ends : [def.ends[1], def.ends[0]];
     const ahead = fwd ? B.find((b) => b.mid > pos) : [...B].reverse().find((b) => b.mid < pos);
     const behind = fwd ? [...B].reverse().find((b) => b.mid < pos) : B.find((b) => b.mid > pos);
     if (ahead && behind) return `Tussen ${behind.name} en ${ahead.name}`;
-    if (ahead) return (fwd ? 'Vanaf Tolsteeg, richting ' : 'Vanaf de Weerdsluis, richting ') + ahead.name;
-    if (behind) return `Voorbij de ${behind.name}` + (fwd ? ', bij de Weerdsluis' : ', bij Tolsteeg');
-    return '';
+    if (ahead) return `Vanaf ${from}, richting ${ahead.name}`;
+    if (behind) return `Voorbij ${behind.name}, bij ${to}`;
+    return `Van ${from} naar ${to}`;
   }
 
+  /* ---------- routekiezer ---------- */
+  for (const d of ROUTES) {
+    const o = document.createElement('option');
+    o.value = d.id;
+    o.textContent = `${d.city} – ${d.name} (${nf(built[d.id].L / 1000, 1)} km)`;
+    el.routeSelect.appendChild(o);
+  }
+  function updateTexts() {
+    el.routeSelect.value = def.id;
+    el.eyebrow.textContent = `${def.city} · vanaf het water`;
+    el.routeTitle.textContent = def.name;
+    el.settingsRoute.textContent = `· ${def.city}`;
+    document.title = `${def.name} vanaf het water`;
+    el.hopHelp = el.hopHelp || $('hopHelp');
+    el.hopHelp.textContent = def.bridgeUnder > 0
+      ? `Onder ${nf(def.bridgeUnder, 0)} m vlieg je onder de bruggen door. Vlieg je hoger, dan tilt dit de camera over de brug heen.`
+      : 'In het 3D-model zijn de bruggen massief: onder een brug door zie je even het binnenste van het model. Zet dit aan om er soepel overheen te wippen.';
+    if (map) { try { map.description = `3D-vlucht over ${def.name} in ${def.city}`; } catch { /* niet ondersteund */ } }
+  }
+  function updateUrl() {
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set('route', def.id);
+      history.replaceState(null, '', u.toString());
+    } catch { /* bijv. file:// in sommige browsers */ }
+  }
+  el.routeSelect.addEventListener('change', () => setRoute(el.routeSelect.value, true));
+
   /* ---------- overzichtskaartje ---------- */
-  let miniMe = null, miniUnitsPerPx = 1, miniBox = null;
+  let miniMe = null;
   function drawMini() {
     const P = route.pts, svg = el.mini;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const [x, y] of P) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
-    const pad = 40;
-    miniBox = { x: minX - pad, y: -maxY - pad, w: (maxX - minX) + 2 * pad, h: (maxY - minY) + 2 * pad };
-    svg.setAttribute('viewBox', `${miniBox.x} ${miniBox.y} ${miniBox.w} ${miniBox.h}`);
+    // Paneelgrootte volgt de vorm van de route.
+    const small = window.innerWidth <= 640;
+    const maxH = small ? 190 : 272, maxW = small ? 150 : 220, minSide = small ? 56 : 80, padPx = small ? 12 : 16;
+    const aspect = Math.max(0.05, (maxX - minX) / Math.max(1, maxY - minY));
+    let H = maxH, W = H * aspect;
+    if (W > maxW) { W = maxW; H = W / aspect; }
+    W = Math.max(minSide, W); H = Math.max(minSide, H);
+    el.miniPanel.style.width = Math.round(W + padPx) + 'px';
+    el.miniPanel.style.height = Math.round(H + padPx) + 'px';
+    el.brand.style.maxWidth = `calc(100% - ${Math.round(W + padPx + (small ? 30 : 48))}px)`;
+
+    const span = Math.max(maxX - minX, maxY - minY);
+    const pad = span * 0.08 + 20;
+    const box = { x: minX - pad, y: -maxY - pad, w: (maxX - minX) + 2 * pad, h: (maxY - minY) + 2 * pad };
+    svg.setAttribute('viewBox', `${box.x} ${box.y} ${box.w} ${box.h}`);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    const r = svg.getBoundingClientRect();
-    miniUnitsPerPx = Math.max(miniBox.w / Math.max(1, r.width), miniBox.h / Math.max(1, r.height));
-    const u = miniUnitsPerPx;
-    const d = P.filter((_, i) => i % 4 === 0 || i === P.length - 1)
+    const u = Math.max(box.w / W, box.h / H);   // routemeters per schermpixel
+    const every = Math.max(1, Math.round(4 / route.step));
+    const d = P.filter((_, i) => i % every === 0 || i === P.length - 1)
       .map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + (-p[1]).toFixed(1)).join(' ');
     let html = `<path d="${d}" fill="none" stroke="#6db3ae" stroke-opacity=".28" stroke-width="${7 * u}" stroke-linecap="round" stroke-linejoin="round"/>`;
     html += `<path d="${d}" fill="none" stroke="#6db3ae" stroke-width="${1.6 * u}" stroke-linecap="round" stroke-linejoin="round"/>`;
     for (const b of route.bridges) {
       const p = route.sample(b.mid), h = p.heading * Math.PI / 180;
-      const nx = Math.cos(h) * 4.5 * u, ny = Math.sin(h) * 4.5 * u; // dwars op de gracht
+      const nx = Math.cos(h) * 4.5 * u, ny = Math.sin(h) * 4.5 * u; // dwars op het water
       html += `<line x1="${p.x - nx}" y1="${-p.y - ny}" x2="${p.x + nx}" y2="${-p.y + ny}" stroke="#f2eee7" stroke-opacity=".75" stroke-width="${1.4 * u}" stroke-linecap="round"><title>${b.name}</title></line>`;
     }
     html += `<g id="miniMe"><circle r="${7 * u}" fill="#d8774a" fill-opacity=".25"/><path d="M0 ${-6.5 * u} L${4.2 * u} ${4.5 * u} L0 ${2.2 * u} L${-4.2 * u} ${4.5 * u} Z" fill="#d8774a" stroke="#1b0f09" stroke-width="${0.6 * u}"/></g>`;
@@ -626,9 +791,9 @@ function cameraAt(route, s, st) {
 
   /* ---------- camera ---------- */
   function applyCamera() {
-    const c = cameraAt(route, s, st);
+    const c = cameraAt(def, route, s, st);
     updateMini(c);
-    if (!map) return c;
+    if (!map || flying) return c;
     try {
       map.heading = c.heading;
       map.tilt = c.tilt;
@@ -652,8 +817,18 @@ function cameraAt(route, s, st) {
     fill(el.scrub);
   }
 
+  /* Een lopende vlucht naar een andere stad afbreken (bijv. als je op afspelen drukt). */
+  function cancelFlight() {
+    if (!flying) return;
+    flying = false; routeToken++; onFlightEnd = null;
+    try { map && map.stopCameraAnimation(); } catch { /* niets */ }
+    hideStatus();
+    needsApply = true;
+  }
+
   function setPlaying(on) {
     if (on && !mapReady) return;
+    if (on) cancelFlight();
     if (on && ended) { s = 0; ended = false; }
     playing = on;
     el.play.classList.toggle('is-playing', on);
@@ -662,6 +837,7 @@ function cameraAt(route, s, st) {
     lastT = performance.now();
   }
   function seekTo(v) {
+    cancelFlight();
     s = Math.min(route.L, Math.max(0, v));
     ended = s >= route.L;
     needsApply = true;
@@ -675,7 +851,7 @@ function cameraAt(route, s, st) {
       if (s >= route.L) { s = route.L; ended = true; setPlaying(false); }
       needsApply = true;
     }
-    if (needsApply) {
+    if (needsApply && !flying) {
       needsApply = false;
       const c = applyCamera();
       updateUi(c, !playing);
@@ -683,10 +859,61 @@ function cameraAt(route, s, st) {
     requestAnimationFrame(frame);
   }
 
+  /* Wacht tot de 3D-tegels geladen zijn (of maximaal een paar seconden) en start dan. */
+  function startWhenSteady(token, ms = 9000) {
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true;
+      map.removeEventListener('gmp-steadychange', onSteady);
+      if (token !== routeToken) return;
+      mapReady = true;
+      hideStatus();
+      needsApply = true;
+      setPlaying(true);
+    };
+    const onSteady = (e) => { if (e.isSteady) finish(); };
+    map.addEventListener('gmp-steadychange', onSteady);
+    setTimeout(finish, ms);
+  }
+
+  /* Andere route kiezen; met fly=true vliegt de camera over de wereldbol naar de nieuwe stad. */
+  function setRoute(id, fly) {
+    const next = ROUTES.find((r) => r.id === id);
+    if (!next) return;
+    cancelFlight();
+    setPlaying(false);
+    calibrating = false; el.hint.hidden = true;
+    def = next; route = built[def.id]; st = loadSettings(def);
+    s = 0; ended = false;
+    updateTexts(); syncControls(); drawMini(); updateUrl();
+    const c = cameraAt(def, route, 0, st);
+    updateMini(c); updateUi(c, true);
+    if (!map || !fly || !mapReady) { needsApply = true; return; }
+
+    const token = ++routeToken;
+    flying = true;
+    showStatus(`Vliegen naar ${def.city}…`);
+    let landed = false;
+    const land = () => {
+      if (landed || token !== routeToken) return;
+      landed = true; flying = false; onFlightEnd = null;
+      needsApply = true;
+      showStatus(`3D-tegels van ${def.city} laden…`);
+      startWhenSteady(token);
+    };
+    onFlightEnd = land;
+    try {
+      map.flyCameraTo({
+        endCamera: { center: c.center, heading: c.heading, tilt: c.tilt, range: c.range, roll: 0 },
+        durationMillis: 8000
+      });
+    } catch (err) { console.warn(err); land(); }
+    setTimeout(land, 10000); // vangnet als de animatie geen eindsignaal geeft
+  }
+
   /* ---------- bediening ---------- */
   el.play.addEventListener('click', () => setPlaying(!playing));
   el.restart.addEventListener('click', () => { seekTo(0); ended = false; if (mapReady) setPlaying(true); });
-  el.scrub.max = route.L;
   el.scrub.addEventListener('input', () => { seekTo(+el.scrub.value); fill(el.scrub); });
 
   el.settingsBtn.addEventListener('click', () => {
@@ -696,6 +923,8 @@ function cameraAt(route, s, st) {
   });
 
   function syncControls() {
+    el.scrub.max = route.L;
+    el.height.max = def.maxHeight;
     el.speed.value = st.speed; el.height.value = st.height; el.pitch.value = st.pitch; el.fov.value = st.fov;
     el.hop.checked = st.hop;
     el.speedOut.textContent = `${nf(st.speed, 1)} m/s · ${nf(st.speed * 3.6, 0)} km/u`;
@@ -703,7 +932,11 @@ function cameraAt(route, s, st) {
     el.pitchOut.textContent = `${nf(st.pitch, 1)}°`;
     el.fovOut.textContent = `${st.fov}°`;
     el.waterOut.textContent = `${nf(st.water, 2)} m`;
-    for (const b of document.querySelectorAll('[data-dir]')) b.setAttribute('aria-pressed', String(+b.dataset.dir === st.dir));
+    for (const b of document.querySelectorAll('[data-dir]')) {
+      const d = +b.dataset.dir;
+      b.textContent = 'Naar ' + (d > 0 ? def.ends[1] : def.ends[0]);
+      b.setAttribute('aria-pressed', String(d === st.dir));
+    }
     for (const r of [el.speed, el.height, el.pitch, el.fov]) fill(r);
     if (map) { try { map.fov = st.fov; } catch { /* oudere versie */ } }
   }
@@ -727,10 +960,16 @@ function cameraAt(route, s, st) {
     calibrating = true;
     showHint('Klik nu op het wateroppervlak in beeld om het waterpeil te meten.');
   });
-  el.waterReset.addEventListener('click', () => { st.water = DEFAULTS.water; syncControls(); saveSettings(); needsApply = true; });
+  el.waterReset.addEventListener('click', () => { st.water = def.water; syncControls(); saveSettings(); needsApply = true; });
+  el.resetAll.addEventListener('click', () => {
+    st = routeDefaults(def); store.del(settingsKey(def));
+    if (s > route.L) s = route.L;
+    syncControls(); needsApply = true;
+    showHint(`Standaardinstellingen voor ${def.city} hersteld.`, 2500);
+  });
 
   document.addEventListener('keydown', (e) => {
-    if (e.target.closest && e.target.closest('input[type=text], form')) return;
+    if (e.target.closest && e.target.closest('input[type=text], form, select')) return;
     if (e.code === 'Space') {
       // Knoppen en schakelaars reageren zelf al op de spatiebalk.
       if (e.target.tagName === 'BUTTON' || e.target.type === 'checkbox') return;
@@ -766,9 +1005,9 @@ function cameraAt(route, s, st) {
 
   /* ---------- API-sleutel ---------- */
   function currentKey() {
-    const fromUrl = new URLSearchParams(location.search).get('key');
+    const fromParam = new URLSearchParams(location.search).get('key');
     // Een zelf ingevoerde sleutel ("Andere API-sleutel gebruiken") gaat voor de vaste sleutel.
-    return fromUrl || store.sget('key') || store.get('key') || API_KEY || '';
+    return fromParam || store.sget('key') || store.get('key') || API_KEY || '';
   }
   function askKey() {
     el.keyInput.value = '';
@@ -815,7 +1054,7 @@ function cameraAt(route, s, st) {
       await loadMaps(key);
       const lib = await google.maps.importLibrary('maps3d');
       const { Map3DElement, MapMode, GestureHandling } = lib;
-      const c = cameraAt(route, s, st);
+      const c = cameraAt(def, route, s, st);
       map = new Map3DElement({
         center: c.center,
         heading: c.heading,
@@ -829,13 +1068,14 @@ function cameraAt(route, s, st) {
         mode: (MapMode && MapMode.SATELLITE) || 'SATELLITE',
         gestureHandling: (GestureHandling && GestureHandling.GREEDY) || 'GREEDY',
         defaultUIHidden: true,
-        description: '3D-vaart over de Oudegracht in Utrecht'
+        description: `3D-vlucht over ${def.name} in ${def.city}`
       });
       hasCameraPosition = 'cameraPosition' in map;
       if (hasCameraPosition) { try { map.cameraPosition = c.camera; } catch { hasCameraPosition = false; } }
       $('map').appendChild(map);
 
       map.addEventListener('gmp-error', () => showError('De 3D-kaart kon niet starten. Staat facturering aan voor deze sleutel? Klik hier om een andere sleutel in te voeren.'));
+      map.addEventListener('gmp-animationend', () => { if (onFlightEnd) onFlightEnd(); });
       map.addEventListener('gmp-click', (e) => {
         if (!calibrating) return;
         if (typeof e.preventDefault === 'function') e.preventDefault();
@@ -844,28 +1084,19 @@ function cameraAt(route, s, st) {
           st.water = Math.round(alt * 100) / 100;
           calibrating = false;
           syncControls(); saveSettings(); needsApply = true;
-          showHint(`Waterpeil gemeten: ${nf(st.water, 2)} m. De camera vaart nu ${nf(st.height, 1)} m daarboven.`, 4500);
+          showHint(`Waterpeil gemeten: ${nf(st.water, 2)} m. De camera vliegt nu ${nf(st.height, 1)} m daarboven.`, 4500);
         } else {
           showHint('Geen hoogte gevonden op dat punt. Klik nog eens op het water.');
         }
       });
 
-      let started = false;
-      const go = () => {
-        if (started) return;
-        started = true; mapReady = true;
-        hideStatus();
-        needsApply = true;
-        setPlaying(true);
-      };
-      map.addEventListener('gmp-steadychange', (e) => { if (e.isSteady) go(); });
-      setTimeout(go, 9000);
-      showStatus('3D-tegels van de binnenstad laden…');
+      showStatus(`3D-tegels van ${def.city} laden…`);
+      startWhenSteady(++routeToken);
 
       setInterval(() => {
         if (!map) return;
         const cp = hasCameraPosition ? map.cameraPosition : null;
-        const want = cameraAt(route, s, st).camera.altitude;
+        const want = cameraAt(def, route, s, st).camera.altitude;
         el.camAlt.textContent = cp && typeof cp.altitude === 'number'
           ? `Camera nu op ${nf(cp.altitude, 1)} m (gevraagd ${nf(want, 1)} m)`
           : `Camera gevraagd op ${nf(want, 1)} m`;
@@ -877,8 +1108,10 @@ function cameraAt(route, s, st) {
   }
 
   /* ---------- start ---------- */
+  updateTexts();
   syncControls();
   drawMini();
+  updateUrl();
   needsApply = true;
   requestAnimationFrame((t) => { lastT = t; frame(t); });
 
