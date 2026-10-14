@@ -2,8 +2,11 @@
 
 A single-page web app that flies a camera along the Oudegracht in Utrecht using
 Google's photorealistic 3D map (`<gmp-map-3d>`, Maps JavaScript API). The camera
-stays low above the water, looks forward, and follows the canal through every bend,
-from Tolsteeg to just past the Weerdbrug (about 1.9 km).
+looks forward and follows the canal through every bend, from Tolsteeg to just past
+the Weerdbrug (about 1.9 km).
+
+Default view: 25 m above the water, looking 25° down, 50° field of view, 5 m/s.
+All of these can be changed in the settings, down to just above the water surface.
 
 ## Running it
 

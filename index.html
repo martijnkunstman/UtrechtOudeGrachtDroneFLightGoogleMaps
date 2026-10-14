@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Oudegracht vanaf het water</title>
-<meta name="description" content="3D-vaart over de Oudegracht in Utrecht met Google Maps 3D: laag boven het water, camera vooruit, door alle bochten.">
+<meta name="description" content="3D-vaart over de Oudegracht in Utrecht met Google Maps 3D: als een drone boven het water, camera vooruit, door alle bochten.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -288,7 +288,7 @@
 
   <div class="row">
     <label for="pitch">Blik omlaag <output id="pitchOut"></output></label>
-    <input id="pitch" type="range" min="0" max="25" step="0.5">
+    <input id="pitch" type="range" min="0" max="45" step="0.5">
   </div>
 
   <div class="row">
@@ -525,7 +525,8 @@ function cameraAt(route, s, st) {
 (() => {
   'use strict';
 
-  const DEFAULTS = { speed: 5, height: 1.2, pitch: 4, fov: 60, hop: false, dir: 1, water: 0.5 };
+  const DEFAULTS = { speed: 5, height: 25, pitch: 25, fov: 50, hop: false, dir: 1, water: 0.5 };
+  const SETTINGS_KEY = 'settings-v2'; // nieuwe sleutel: eerder bewaarde instellingen overschrijven de nieuwe standaard niet
   const LS = 'oudegracht3d:';
   const store = {
     get(k) { try { return localStorage.getItem(LS + k); } catch { return null; } },
@@ -538,10 +539,13 @@ function cameraAt(route, s, st) {
 
   const st = { ...DEFAULTS };
   try {
-    const saved = JSON.parse(store.get('settings') || '{}');
+    const saved = JSON.parse(store.get(SETTINGS_KEY) || '{}');
     for (const k of Object.keys(DEFAULTS)) if (typeof saved[k] === typeof DEFAULTS[k]) st[k] = saved[k];
+    // Een eerder gemeten waterpeil uit de oude instellingen blijft bewaard.
+    const old = JSON.parse(store.get('settings') || '{}');
+    if (typeof saved.water !== 'number' && typeof old.water === 'number') st.water = old.water;
   } catch { /* negeer */ }
-  const saveSettings = () => store.set('settings', JSON.stringify(st));
+  const saveSettings = () => store.set(SETTINGS_KEY, JSON.stringify(st));
 
   const route = buildRoute(RAW_PATH, BRIDGES);
   const $ = (id) => document.getElementById(id);
