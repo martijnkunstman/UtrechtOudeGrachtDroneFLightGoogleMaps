@@ -796,6 +796,9 @@ function cameraAt(def, route, s, st) {
     updateMini(c);
     if (!map || flying) return c;
     try {
+      // Alle camerawaarden elke keer opnieuw zetten: de vlucht tussen steden past ze zelf aan.
+      if (map.fov !== st.fov) map.fov = st.fov;
+      if (map.roll) map.roll = 0;
       map.heading = c.heading;
       map.tilt = c.tilt;
       map.range = c.range;
@@ -873,6 +876,8 @@ function cameraAt(def, route, s, st) {
       if (token !== routeToken) return;
       mapReady = true;
       hideStatus();
+      syncControls();
+      applyCamera();
       needsApply = true;
       setPlaying(true);
     };
@@ -909,6 +914,10 @@ function cameraAt(def, route, s, st) {
     const land = () => {
       if (landed || token !== routeToken) return;
       landed = true; flying = false; onFlightEnd = null;
+      // Na de vlucht: de standaardinstellingen opnieuw toepassen op de kaart én in het paneel.
+      st = loadSettings(def);
+      syncControls();
+      applyCamera();
       needsApply = true;
       showStatus(`3D-tegels van ${def.city} laden…`);
       startWhenSteady(token);
@@ -916,7 +925,7 @@ function cameraAt(def, route, s, st) {
     onFlightEnd = land;
     try {
       map.flyCameraTo({
-        endCamera: { center: c.center, heading: c.heading, tilt: c.tilt, range: c.range, roll: 0 },
+        endCamera: { center: c.center, heading: c.heading, tilt: c.tilt, range: c.range, roll: 0, fov: st.fov },
         durationMillis: 8000
       });
     } catch (err) { console.warn(err); land(); }
@@ -950,7 +959,7 @@ function cameraAt(def, route, s, st) {
       b.setAttribute('aria-pressed', String(d === st.dir));
     }
     for (const r of [el.speed, el.height, el.pitch, el.fov]) fill(r);
-    if (map) { try { map.fov = st.fov; } catch { /* oudere versie */ } }
+    if (map && !flying) { try { map.fov = st.fov; } catch { /* oudere versie */ } }
   }
   const onSetting = (key, input) => input.addEventListener('input', () => {
     st[key] = +input.value; syncControls(); saveSettings(); needsApply = true;
